@@ -1,0 +1,11 @@
+name_en,name_hi,calories_per_100g,protein_per_100g,carbs_per_100g,fats_per_100g,fiber_per_100g,is_vegetarian,is_vegan,is_jain
+"Bengal Gram Dal","Chana Dal",372,20.8,59.8,5.6,1.2,True,True,True
+"Green Gram Dal","Moong Dal",348,24.5,59.9,1.2,8.2,True,True,True
+"Spinach","Palak",23,2.9,3.6,0.4,2.2,True,True,True
+"Potato","Aloo",97,1.6,22.6,0.1,1.7,True,True,False
+"Chicken Breast","Murgh",165,31,0,3.6,0,False,False,False
+"Paneer","Paneer",296,14,3.4,25,0,True,False,True
+"Mustard Oil","Sarson Ka Tel",884,0,0,100,0,True,True,True
+"Tomato","Tamatar",18,0.9,3.9,0.2,1.2,True,True,True
+"Onion","Pyaz",40,1.1,9.3,0.1,1.7,True,True,False
+"Garlic","Lehsun",149,6.4,33,0.5,2.1,True,True,False
