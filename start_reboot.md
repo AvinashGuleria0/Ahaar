@@ -1,11 +1,5 @@
 # Aahar Reboot Guide (USB Tethering + Physical Phone)
 
-This guide is for your setup:
-- Internet + local network via USB tethering from Infinix phone
-- Same phone used to run Flutter app and scan food
-
----
-
 ## 1. Connect USB Tethering First
 
 1. Connect phone to laptop with USB.
@@ -36,7 +30,7 @@ final String apiUrl = "http://<YOUR_USB_IP>:8000/api/v1/analyze/vision";
 Example:
 
 ```dart
-final String apiUrl = "http://10.85.238.59:8000/api/v1/analyze/vision";
+final String apiUrl = "http://10.85.238.60:8000/api/v1/analyze/vision";
 ```
 
 Quick check for stale IP:
@@ -54,7 +48,7 @@ From project root:
 ```bash
 cd backend
 source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --phould I wrap the whole thing in a robust try/except specifically looking for that constraint violation and retry, or just let FastAPI return a standard 400 errort 8000 --reload
 ```
 
 Important:
@@ -146,3 +140,7 @@ flutter run
 ```
 
 When USB reconnects, re-check IP and update `lib/main.dart` before running.
+
+
+
+asusctl profile set performance

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -20,11 +21,21 @@ class _AaharPoCState extends State<AaharPoC> {
   File? _image;
   List<dynamic> _dishes =[];
   bool _isLoading = false;
+  int? _imageWidth;
+  int? _imageHeight;
 
   final ImagePicker _picker = ImagePicker();
 
   // Change this to your laptop's IP if using a real phone!
-  final String apiUrl = "http://10.85.238.136:8000/api/v1/analyze/vision";
+  final String apiUrl = "http://10.252.124.14:8000/api/v1/analyze/vision";
+
+  Future<ui.Image> _decodeImage(File file) async {
+    final bytes = await file.readAsBytes();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
   Future<void> _captureAndAnalyze() async {
     print("📸 Opening Image Picker...");
     final XFile? pickedFile = await _picker.pickImage(
@@ -40,8 +51,13 @@ class _AaharPoCState extends State<AaharPoC> {
     }
 
     print("🖼️ Image picked: ${pickedFile.path}");
+    final selectedFile = File(pickedFile.path);
+    final decoded = await _decodeImage(selectedFile);
+
     setState(() {
-      _image = File(pickedFile.path);
+      _image = selectedFile;
+      _imageWidth = decoded.width;
+      _imageHeight = decoded.height;
       _dishes = [];
       _isLoading = true;
     });
@@ -51,10 +67,10 @@ class _AaharPoCState extends State<AaharPoC> {
       var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
       request.files.add(await http.MultipartFile.fromPath('file', _image!.path));
 
-      var response = await request.send().timeout(const Duration(seconds: 30));
+      var response = await request.send().timeout(const Duration(seconds: 180));
       print("⬇️ Response received: ${response.statusCode}");
       
-      var responseData = await response.stream.bytesToString();
+      var responseData = await response.stream.bytesToString().timeout(const Duration(seconds: 180));
       var jsonResponse = json.decode(responseData);
 
       setState(() {
@@ -90,7 +106,11 @@ class _AaharPoCState extends State<AaharPoC> {
                       if (_dishes.isNotEmpty)
                         Positioned.fill(
                           child: CustomPaint(
-                            painter: BoundingBoxPainter(_dishes),
+                            painter: BoundingBoxPainter(
+                              _dishes,
+                              imageWidth: _imageWidth,
+                              imageHeight: _imageHeight,
+                            ),
                           ),
                         ),
                     ],

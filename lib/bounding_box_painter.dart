@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 class BoundingBoxPainter extends CustomPainter {
   final List<dynamic> dishes;
+  final int? imageWidth;
+  final int? imageHeight;
 
-  BoundingBoxPainter(this.dishes);
+  BoundingBoxPainter(this.dishes, {this.imageWidth, this.imageHeight});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -17,14 +19,15 @@ class BoundingBoxPainter extends CustomPainter {
     );
 
     for (var dish in dishes) {
-      // The API returns[y_min, x_min, y_max, x_max] as percentages (0.0 to 1.0)
       List<dynamic> box = dish['bounding_box'];
       
-      // Convert percentages to actual screen pixels
-      double yMin = box[0] * size.height;
-      double xMin = box[1] * size.width;
-      double yMax = box[2] * size.height;
-      double xMax = box[3] * size.width;
+      // FIX: Gemma outputs on a 0-1000 scale. We convert it to 0.0 - 1.0.
+      double scale = box[0] > 1.0 ? 1000.0 : 1.0;
+
+      double yMin = (box[0] / scale) * size.height;
+      double xMin = (box[1] / scale) * size.width;
+      double yMax = (box[2] / scale) * size.height;
+      double xMax = (box[3] / scale) * size.width;
 
       final rect = Rect.fromLTRB(xMin, yMin, xMax, yMax);
       canvas.drawRect(rect, paint);

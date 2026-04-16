@@ -2,14 +2,25 @@ import os
 import base64
 import json
 import re
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import uuid
+from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
-from groq import Groq
+from openai import OpenAI
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+
+from schemas import (
+    UserCreate, 
+    UserResponse, 
+    MealLogRequest, 
+    MealLogResponse, 
+    DailyLogResponse, 
+    MealLogSuccessResponse
+)
+from services import calculate_advanced_macros
 
 load_dotenv()
 
@@ -26,7 +37,11 @@ app.add_middleware(
 )
 
 # Initialize Clients
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# Initialize Local Ollama Client (No API key needed)
+local_client = OpenAI(
+    base_url="http://localhost:11434/v1",
+    api_key="ollama",
+)
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 print("🧠 Loading Local Embedding Model...")
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -92,43 +107,43 @@ async def analyze_vision(file: UploadFile = File(...)):
         print("🖼️ Image encoding successful.")
         
         # Determine model
-        model_id = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        model_id = "gemma4:e4b"
 
-        # 2. Ask Groq to analyze the image
-        print(f"🚀 Sending to Groq Vision using model: {model_id}...")
-        system_prompt = """
-        You are an expert Indian Nutritionist and computer vision assistant. 
-        Analyze this image of an Indian meal. 
-        
-        CRITICAL FORMATTING RULES:
-        1. Output MUST be valid JSON.
-        2. Bounding boxes MUST be a list of 4 individual floats: [y_min, x_min, y_max, x_max].
-        3. NEVER merge numbers like "0.1230.456". Every number must be separated by a comma and a space.
-        4. NEVER put quotes around the numbers or the list itself.
-        5. Return ONLY the JSON object, no other text.
+        # 2. Ask local Ollama model to analyze the image
+        print(f"🚀 Sending to local Ollama model: {model_id}...")
+       
+        system_prompt = """ 
+            You are an expert Indian based Nutritionist and computer vision assistant. 
+            Analyze this image of an meal. 
+            Your role is to identify dishes and thier ingredients analyze them and tell what do you think the meal is.
+            CRITICAL FORMATTING RULES:
+            1. Output MUST be valid JSON.
+            2. Bounding boxes MUST be a list of 4 individual numbers: [y_min, x_min, y_max, x_max].
+            3. Coordinates MUST be on a scale of 0-1000.
+            4. NEVER merge numbers. Every number must be separated by a comma and a space.
+            5. Return ONLY the JSON object.
 
-        The structure should follow this schema:
-        {
-          "dishes": [
+            The structure should follow this schema:
             {
-              "dish_name": "Name",
-              "bounding_box": [0.12, 0.34, 0.56, 0.78], 
-              "gravy_detected": true,
-              "ingredients": [
-                {"name": "Ingredient", "weight_g": 100.0}
+              "dishes": [
+                {
+                  "dish_name": "Name",
+                  "bounding_box":[120, 340, 560, 780],                   "gravy_detected": true,
+                  "ingredients": [
+                    {"name": "Ingredient", "weight_g": 100.0}
+                  ]
+                }
               ]
             }
-          ]
-        }
         """
         
-        chat_completion = groq_client.chat.completions.create(
+        chat_completion = local_client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content":[
-                        {"type": "text", "text": "Analyze this Indian plate and return JSON. Ensure bounding_box has 4 distinct comma-separated floats."},
+                    "content": [
+                        {"type": "text", "text": "Analyze this Indian plate and return JSON. Ensure bounding_box has 4 distinct comma-separated floats on a 0-1000 scale."},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }
@@ -208,3 +223,121 @@ async def analyze_vision(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/users/profile", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user_profile(user_data: UserCreate):
+    try:
+        # Calculate macros using our advanced engine
+        calculated_macros = calculate_advanced_macros(user_data)
+        
+        # Convert Pydantic model to dictionary, converting Enum types to exact strings
+        db_data = user_data.model_dump(mode='json')
+        
+        # Generate random UUID for auth_id as requested
+        db_data["auth_id"] = str(uuid.uuid4())
+        
+        # Merge calculated macros
+        db_data.update(calculated_macros)
+        
+        # Insert everything directly into the Supabase target table
+        response = supabase.table("users").insert(db_data).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=400, detail="Supabase Insertion Failed: No data returned")
+            
+        return response.data[0]
+        
+    except Exception as e:
+        print(f"Profile creation error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@app.post("/api/v1/meals/log", response_model=MealLogSuccessResponse, status_code=status.HTTP_201_CREATED)
+async def log_meal(request: MealLogRequest):
+    try:
+        user_id_str = str(request.user_id)
+        log_date_str = request.log_date.isoformat()
+        
+        # 1. Check if a row exists in daily_logs for this user_id and log_date
+        daily_logs_query = supabase.table("daily_logs").select("*").eq("user_id", user_id_str).eq("log_date", log_date_str).execute()
+        
+        daily_log_id = None
+        current_daily_totals = None
+        
+        # 2. If it does NOT exist, create a new row
+        if not daily_logs_query.data:
+            try:
+                insert_daily_log = supabase.table("daily_logs").insert({
+                    "user_id": user_id_str,
+                    "log_date": log_date_str
+                    # Other fields default to 0 through Postgres schema logic
+                }).execute()
+                
+                if not insert_daily_log.data:
+                    raise HTTPException(status_code=500, detail="Failed to initialize daily log row.")
+                
+                current_daily_totals = insert_daily_log.data[0]
+                daily_log_id = current_daily_totals["id"]
+                
+            except Exception as insert_e:
+                # Handle potential race condition where another request created the daily_log an instant before
+                # (Postgres unique constraint violation on user_id + log_date)
+                error_str = str(insert_e)
+                if "23505" in error_str or "unique constraint" in error_str.lower():
+                    # Re-fetch gracefully
+                    re_fetch = supabase.table("daily_logs").select("*").eq("user_id", user_id_str).eq("log_date", log_date_str).execute()
+                    if not re_fetch.data:
+                        raise HTTPException(status_code=500, detail="Race condition failed to resolve on daily_logs.")
+                    current_daily_totals = re_fetch.data[0]
+                    daily_log_id = current_daily_totals["id"]
+                else:
+                    raise HTTPException(status_code=400, detail=f"Database constraint error: {error_str}")
+        else:
+            # Row existed, retrieve the exact data payload
+            current_daily_totals = daily_logs_query.data[0]
+            daily_log_id = current_daily_totals["id"]
+            
+        # 3. Insert a new row into the meals table
+        meal_insert_payload = {
+            "daily_log_id": daily_log_id,
+            "meal_type": request.meal_type.value, # Enum to string
+            "meal_calories": request.meal_calories,
+            "meal_protein_g": request.meal_protein_g
+        }
+        
+        meal_insert_res = supabase.table("meals").insert(meal_insert_payload).execute()
+        if not meal_insert_res.data:
+            raise HTTPException(status_code=500, detail="Failed to insert meal specifics.")
+            
+        inserted_meal = meal_insert_res.data[0]
+        
+        # 4. Update the daily_logs table by adding the meal's specific macros.
+        # We explicitly calculate via fetched Python data to prevent stale state overwrites
+        new_totals = {
+            "consumed_calories": float(current_daily_totals.get("consumed_calories", 0) or 0) + request.meal_calories,
+            "consumed_protein_g": float(current_daily_totals.get("consumed_protein_g", 0) or 0) + request.meal_protein_g,
+            "consumed_carbs_g": float(current_daily_totals.get("consumed_carbs_g", 0) or 0) + request.meal_carbs_g,
+            "consumed_fats_g": float(current_daily_totals.get("consumed_fats_g", 0) or 0) + request.meal_fats_g,
+            "consumed_fiber_g": float(current_daily_totals.get("consumed_fiber_g", 0) or 0) + request.meal_fiber_g,
+            "consumed_sugar_g": float(current_daily_totals.get("consumed_sugar_g", 0) or 0) + request.meal_sugar_g,
+            "consumed_sodium_mg": float(current_daily_totals.get("consumed_sodium_mg", 0) or 0) + request.meal_sodium_mg,
+        }
+        
+        update_res = supabase.table("daily_logs").update(new_totals).eq("id", daily_log_id).execute()
+        
+        if not update_res.data:
+            raise HTTPException(status_code=500, detail="Failed to calculate and update daily totals properly.")
+            
+        updated_daily_totals = update_res.data[0]
+        
+        # 5. Return success structured tightly against our new schemas
+        return {
+            "message": "Meal logged successfully",
+            "meal": inserted_meal,
+            "daily_totals": updated_daily_totals
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Meal Log error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
