@@ -107,7 +107,7 @@ async def analyze_vision(file: UploadFile = File(...)):
         print("🖼️ Image encoding successful.")
         
         # Determine model
-        model_id = "gemma4:e4b"
+        model_id = "gemma4:e2b"
 
         # 2. Ask local Ollama model to analyze the image
         print(f"🚀 Sending to local Ollama model: {model_id}...")
