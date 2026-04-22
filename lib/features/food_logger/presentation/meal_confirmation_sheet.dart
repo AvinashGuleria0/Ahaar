@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_schemas.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../dashboard/domain/daily_log_notifier.dart';
 import '../domain/meal_draft_notifier.dart';
 
@@ -103,22 +104,27 @@ class _MealConfirmationSheetState extends ConsumerState<MealConfirmationSheet> {
           const SizedBox(height: 10),
           
           // LIVE MACRO SUM SUMMARY
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _MacroBadge(label: "Kcal", value: currentMacros.calories),
-                _MacroBadge(label: "Pro", value: currentMacros.protein),
-                _MacroBadge(label: "Carb", value: currentMacros.carbs),
-                _MacroBadge(label: "Fat", value: currentMacros.fats),
-              ],
-            ),
-          ),
+          Builder(builder: (context) {
+            final macroColors = Theme.of(context).extension<MacroColors>();
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.light 
+                    ? Colors.orange.shade50 
+                    : Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _MacroBadge(label: "Kcal", value: currentMacros.calories, color: macroColors?.calories),
+                  _MacroBadge(label: "Pro", value: currentMacros.protein, color: macroColors?.protein),
+                  _MacroBadge(label: "Carb", value: currentMacros.carbs, color: macroColors?.carbs),
+                  _MacroBadge(label: "Fat", value: currentMacros.fats, color: macroColors?.fats),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: 10),
           const Divider(),
 
@@ -210,14 +216,15 @@ class _MealConfirmationSheetState extends ConsumerState<MealConfirmationSheet> {
 class _MacroBadge extends StatelessWidget {
   final String label;
   final double value;
+  final Color? color;
 
-  const _MacroBadge({required this.label, required this.value});
+  const _MacroBadge({required this.label, required this.value, this.color});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange)),
+        Text(value.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color ?? Colors.deepOrange)),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );

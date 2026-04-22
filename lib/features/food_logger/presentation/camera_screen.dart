@@ -26,7 +26,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   final ImagePicker _picker = ImagePicker();
 
   // Change this to your laptop's IP if using a real phone!
-  final String apiUrl = "http://10.72.234.218:8000/api/v1/analyze/vision";
+  final String apiUrl = "http://10.72.234.85:8000/api/v1/analyze/vision";
 
   Future<ui.Image> _decodeImage(File file) async {
     final bytes = await file.readAsBytes();
@@ -130,8 +130,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                           child: CustomPaint(
                             painter: BoundingBoxPainter(
                               _dishes,
-                              imageWidth: _imageWidth,
-                              imageHeight: _imageHeight,
+                              imageOriginalWidth: _imageWidth?.toDouble() ?? 1000.0,
+                              imageOriginalHeight: _imageHeight?.toDouble() ?? 1000.0,
                             ),
                           ),
                         ),

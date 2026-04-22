@@ -136,7 +136,7 @@ class MealDraftNotifier extends Notifier<List<DraftDish>> {
             final macros = ingData['macros'] is Map ? ingData['macros'] : ingData;
             
             return DraftIngredient(
-              name: ingData['name'] ?? 'Unknown Ingredient',
+              name: ingData['ai_name'] ?? ingData['db_matched_name'] ?? ingData['name'] ?? 'Unknown Ingredient',
               weightG: (ingData['weight_g'] ?? 0.0).toDouble(),
               calories: (macros['calories'] ?? 0.0).toDouble(),
               protein: (macros['protein_g'] ?? macros['protein'] ?? 0.0).toDouble(),
