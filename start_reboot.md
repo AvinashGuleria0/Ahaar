@@ -48,7 +48,7 @@ From project root:
 ```bash
 cd backend
 source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --phould I wrap the whole thing in a robust try/except specifically looking for that constraint violation and retry, or just let FastAPI return a standard 400 errort 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Important:
