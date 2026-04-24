@@ -13,7 +13,7 @@ class DatabaseService {
   static Future<Isar> init() async {
     final dir = await path_provider.getApplicationDocumentsDirectory();
     final isar = await Isar.open(
-      [LocalDailyLogSchema, LocalMealSchema],
+      [LocalDailyLogSchema, LocalMealSchema, LocalUserProfileSchema, LocalWorkoutPlanSchema, LocalExerciseLogSchema],
       directory: dir.path,
     );
     return isar;

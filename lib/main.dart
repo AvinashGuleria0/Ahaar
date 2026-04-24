@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/database/database_provider.dart';
-import 'features/food_logger/presentation/camera_screen.dart';
+import 'core/network/sync_service.dart';
+import 'features/dashboard/presentation/dashboard_screen.dart';
+import 'features/onboarding/domain/auth_service.dart';
+import 'features/onboarding/presentation/onboarding_screen.dart';
+import 'core/theme/app_theme.dart';
 
 void main() async {
   // Ensure native channel hook is initialized prior to Isar build
@@ -15,10 +19,42 @@ void main() async {
       overrides: [
         databaseProvider.overrideWithValue(isarInstance),
       ],
-      child: const MaterialApp(
-        home: CameraScreen(),
-        debugShowCheckedModeBanner: false,
-      ),
+      child: const AaharApp(),
     ),
   );
 }
+
+class AaharApp extends ConsumerStatefulWidget {
+  const AaharApp({super.key});
+
+  @override
+  ConsumerState<AaharApp> createState() => _AaharAppState();
+}
+
+class _AaharAppState extends ConsumerState<AaharApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Trigger syncOfflineMealsToCloud in the background right after initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncServiceProvider).syncOfflineMealsToCloud().ignore();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Dynamically watch the global routing state
+    final isOnboardingComplete = ref.watch(onboardingStateProvider);
+
+    return MaterialApp(
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      home: isOnboardingComplete 
+          ? const DashboardScreen() 
+          : const OnboardingScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+

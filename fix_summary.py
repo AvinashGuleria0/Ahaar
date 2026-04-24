@@ -1,4 +1,6 @@
-Task 1: Implementation summary.
+import re
+
+content = """Task 1: Implementation summary.
 - Created `schemas.py` containing Pydantic v2 data models for user profiles.
 - Added strict Python `Enum` classes (e.g., `Gender`, `Goal`, `ActivityLevel`) mirroring the Postgres SQL `CHECK` constraints to ensure 100% type safety and zero-error API payloads.
 - Implemented a clean, DRY inheritance structure using `UserBase`, `UserCreate` (input payload from Flutter), and `UserResponse` (output payload with auto-generated UUIDs and computed targets).
@@ -67,8 +69,8 @@ Task 1: Android/Gradle Namespace Failure (`isar_flutter_libs`)
 - First quick workaround attempted in pub cache by adding `namespace`, but it was initially inserted at the top-level and caused Gradle method-evaluation failures.
 - Corrected pub-cache structure by moving `namespace "dev.isar.isar_flutter_libs"` inside the `android {}` block.
 - Implemented a persistent project-level fix in `android/build.gradle.kts` so builds do not rely on manual pub-cache edits each time:
-	- Added a targeted `subprojects` plugin hook for `com.android.library`.
-	- Injected namespace only for module `isar_flutter_libs` via reflective `setNamespace(...)` call.
+- Added a targeted `subprojects` plugin hook for `com.android.library`.
+- Injected namespace only for module `isar_flutter_libs` via reflective `setNamespace(...)` call.
 - Verified namespace crash no longer appears in Flutter build flow.
 
 Task 2: Java/Gradle Runtime Compatibility Diagnostics
@@ -77,25 +79,25 @@ Task 2: Java/Gradle Runtime Compatibility Diagnostics
 
 Task 3: Broken Imports and Codegen Preconditions
 - Fixed invalid import in `lib/core/database/database_provider.dart`:
-	- From `package:path_provider/package_path_provider.dart`
-	- To `package:path_provider/path_provider.dart`
+- From `package:path_provider/package_path_provider.dart`
+- To `package:path_provider/path_provider.dart`
 - Fixed wrong relative database import depth in `daily_log_notifier.dart` (`../../core/...` -> `../../../core/...`) so analyzer could resolve local database modules.
 - Repaired corrupted dependency cache symptoms with `flutter pub cache repair`, then performed full project refresh:
-	- `flutter clean`
-	- `flutter pub get`
+- `flutter clean`
+- `flutter pub get`
 
 Task 4: Generated Files Missing (`.g.dart`, `.freezed.dart`)
 - Repeated missing-file errors indicated generators were not running with a compatible dependency graph.
 - Cleaned stale generated artifacts and reran builders multiple times:
-	- `dart run build_runner clean`
-	- `dart run build_runner build -d`
+- `dart run build_runner clean`
+- `dart run build_runner build -d`
 - Identified that `local_schemas.g.dart` was missing specifically because `isar_generator` had been absent or blocked by dependency conflicts.
 
 Task 5: Dependency Conflict Root-Cause Resolution
 - Identified hard resolver conflict between `isar_generator` and modern `freezed/json_serializable/source_gen` combinations in the current stack.
 - Simplified strategy to prioritize Isar schema generation stability:
-	- Removed Freezed codegen reliance from `meal_draft_notifier.dart`.
-	- Replaced `@freezed` models (`DraftDish`, `DraftIngredient`) with plain immutable Dart classes including manual `copyWith`, `toJson`, and `fromJson` behavior.
+- Removed Freezed codegen reliance from `meal_draft_notifier.dart`.
+- Replaced `@freezed` models (`DraftDish`, `DraftIngredient`) with plain immutable Dart classes including manual `copyWith`, `toJson`, and `fromJson` behavior.
 - Updated dependency graph in `pubspec.yaml` to a resolvable set for Isar generation.
 - Downgraded `flutter_riverpod` from `3.3.1` to `2.6.1` to satisfy solver constraints with `isar_generator 3.1.0+1` on this toolchain.
 - Successfully installed compatible packages and generated outputs.
@@ -104,8 +106,8 @@ Task 6: Final Verification & Outcome
 - Successfully generated Isar outputs including `lib/core/database/local_schemas.g.dart`.
 - `flutter analyze` no longer showed the original namespace/codegen blocking issues (remaining issues were non-blocking infos plus unrelated test/UI modernization notes).
 - Final build verification passed:
-	- `flutter build apk --debug`
-	- Output: `Built build/app/outputs/flutter-apk/app-debug.apk`
+- `flutter build apk --debug`
+- Output: `Built build/app/outputs/flutter-apk/app-debug.apk`
 
 Task 7: Final Stable State Achieved
 - App build is unblocked and debug APK generation works.
@@ -113,4 +115,26 @@ Task 7: Final Stable State Achieved
 - Isar local schema generation is restored.
 - Meal draft domain logic remains functional without Freezed codegen dependency pressure.
 
+Phase 5: UI Theming, Dark Mode, & Data Binding Fixes
+Task 1: Theming Foundation & Typography
+- Added `google_fonts`, `percent_indicator`, and `intl` packages.
+- Created `lib/core/theme/app_theme.dart` with a dedicated `AppTheme` class managing light and dark `ThemeData`.
+- Configured premium scaffold background rules (`0xFFF8F9FA` for light mode and `0xFF121212` for dark mode).
+- Integrated `GoogleFonts.commissioner()` as the baseline system typography standard scaling correctly across dark/light mode switches.
+- Explicitly styled `AppBarTheme` (zero elevation, transparent) and `CardThemeData` (soft 16px radius with low opacity shadow) representing the new scalable component guidelines.
+
+Task 2: Macro Custom Colors via ThemeExtension
+- Implemented `MacroColors` extending `ThemeExtension` to integrate custom data-colors directly into the Flutter tree.
+- Configured light variations (`Colors.redAccent`, `Colors.blueAccent`, etc.) and mapped their customized dark-mode equivalents.
+- Safely consumed these extensions in the UI via `Theme.of(context).extension<MacroColors>()` future-proofing dynamic component changes independent from static constants.
+- Updated `main.dart`'s `MaterialApp` to automatically adhere to `ThemeMode.system` using `AppTheme.lightTheme` and `AppTheme.darkTheme`.
+
+Task 3: Bug Fix: "Unknown Ingredient" Data Serialization Drop
+- Investigated `DraftIngredient` ingestion in `meal_draft_notifier.dart` which was constantly falling back to 'Unknown Ingredient'.
+- Mapped the deserialization key strictly to the backend LLM outputs via `.ai_name / .db_matched_name` allowing the parser to pick up `ai_name` natively injected by the FastAPI logic wrapper.
+- Finalized data binding, restoring real names dynamically in the local Draft context UI rendering.
+"""
+
+with open("docs/summary_prompts.md", "w") as f:
+    f.write(content)
 

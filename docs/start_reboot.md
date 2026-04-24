@@ -19,29 +19,23 @@ Your backend host IP is `10.85.238.59` (without `/24`).
 
 ---
 
-## 2. Update Flutter API URL (if IP changed)
+## 2. Note Your Backend API URL
 
-Open `lib/main.dart` and set:
+You no longer need to edit code to set the API URL!
 
-```dart
-final String apiUrl = "http://<YOUR_USB_IP>:8000/api/v1/analyze/vision";
-```
+The URL base will be:
+`http://<YOUR_USB_IP>:8000`
 
 Example:
+`http://10.85.238.60:8000`
 
-```dart
-final String apiUrl = "http://10.85.238.60:8000/api/v1/analyze/vision";
-```
-
-Quick check for stale IP:
-
-```bash
-rg -n "apiUrl\s*=\s*\"http://" lib/main.dart
-```
+You will pass this directly when starting the Flutter app.
 
 ---
 
 ## 3. Start Backend (FastAPI)
+
+Ensure Ollama is running in the background (`systemctl start ollama` or via terminal) since the backend uses a local Ollama model (`gemma4:e2b`).
 
 From project root:
 
@@ -64,17 +58,17 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 4. Start Flutter App (Physical Device)
 
-Open a new terminal at project root:
+Open a new terminal at project root and pass your USB IP to the app:
 
 ```bash
 flutter clean
 flutter pub get
-flutter run
+flutter run --dart-define=API_URL="http://<YOUR_USB_IP>:8000"
 ```
 
 If app was already running, do full restart:
 - Press `q` to quit old run
-- Start `flutter run` again
+- Restart with the `flutter run --dart-define...` command
 
 ---
 
@@ -90,20 +84,16 @@ Should return `200 OK`.
 
 ### Flutter is using correct URL
 
-In `flutter run` logs, on scan button tap you should see:
+In `flutter run` logs, on scan button tap you should see requests going to your specific IP.
 
-```text
-I/flutter: 📡 Sending request to: http://<YOUR_USB_IP>:8000/api/v1/analyze/vision
-```
-
-If it shows old IP (like `.127`), app is stale. Quit and run again.
+If it shows old IP (like `127.0.0.1`), app is stale. Quit and run again with the correct `--dart-define`.
 
 ---
 
 ## 6. Common Issues and Fixes
 
 ### `No route to host`
-- Wrong IP in `apiUrl`
+- Wrong IP passed to `--dart-define`
 - USB tethering reconnected and IP changed
 - Backend not running on `0.0.0.0`
 
@@ -111,9 +101,8 @@ If it shows old IP (like `.127`), app is stale. Quit and run again.
 - Another server is already bound to port 8000
 - Run `fuser -k 8000/tcp` and restart backend
 
-### Groq model errors (decommissioned)
-- Use currently available model configured in backend:
-	`meta-llama/llama-4-scout-17b-16e-instruct`
+### Model errors
+- Ensure Ollama is running locally and has the required model (`gemma4:e2b`).
 
 ### Long startup time
 - First backend start loads embedding model (`all-MiniLM-L6-v2`), this is normal
@@ -136,11 +125,7 @@ Terminal 2 (Flutter):
 ```bash
 cd /home/avinasho/coding/projects/aahar
 flutter pub get
-flutter run
+flutter run --dart-define=API_URL="http://<YOUR_USB_IP>:8000"
 ```
 
-When USB reconnects, re-check IP and update `lib/main.dart` before running.
-
-
-
-asusctl profile set performance
+When USB reconnects, re-check IP and run with the updated IP in `--dart-define`.

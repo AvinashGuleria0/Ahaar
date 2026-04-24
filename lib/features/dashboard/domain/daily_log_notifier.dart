@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/database/local_schemas.dart';
+import '../../../core/network/sync_service.dart';
 
 class DailyLogNotifier extends AsyncNotifier<LocalDailyLog?> {
   @override
@@ -20,11 +21,14 @@ class DailyLogNotifier extends AsyncNotifier<LocalDailyLog?> {
 
     // If zero logs exist for today, initialize a fresh baseline to seed the UI dashboard
     if (log == null) {
+      // Look up target macros internally initialized from onboarding.
+      final profile = await isar.localUserProfiles.get(1);
+
       log = LocalDailyLog()
         ..logDate = today
-        // Optionally inherit target calories from previous day here, but defaulted to 0.0 for now
-        ..targetCalories = 2400
-        ..targetProtein = 140
+        // Retrieve goals dynamically based on User Profile caching setup
+        ..targetCalories = (profile?.targetCalories ?? 2400).toDouble()
+        ..targetProtein = (profile?.targetProteinG ?? 140).toDouble()
         ..isSyncedWithCloud = false;
 
       // Persist the initialized blank log immediately
@@ -69,6 +73,9 @@ class DailyLogNotifier extends AsyncNotifier<LocalDailyLog?> {
 
     // 3. Force rebuild standard UI state 
     state = AsyncData(log);
+
+    // 4. Asynchronously attempt to sync the newly created offline meal to the cloud
+    ref.read(syncServiceProvider).syncOfflineMealsToCloud().ignore();
   }
 }
 
