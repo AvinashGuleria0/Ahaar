@@ -18,14 +18,18 @@ from schemas import (
     MealLogRequest, 
     MealLogResponse, 
     DailyLogResponse, 
-    MealLogSuccessResponse
+    MealLogSuccessResponse,
+    TextLogRequest
 )
 from services import calculate_advanced_macros
+from workouts import router as workouts_router
 
 load_dotenv()
 
 # --- INITIALIZATION ---
 app = FastAPI(title="Aahar AI Backend", version="1.0")
+
+app.include_router(workouts_router)
 
 # Allow Flutter/Web to communicate with this API
 app.add_middleware(
@@ -292,6 +296,101 @@ CRITICAL CONSTRAINTS
 
     except Exception as e:
         print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/analyze/text")
+async def analyze_text(request: TextLogRequest):
+    print(f"📥 Received text log: {request.text}")
+    try:
+        model_id = "gemma4:e2b" # Or whichever text model you are currently using in local_client
+        
+        system_prompt = """
+You are an Indian Nutritionist. Extract the food items from the provided text.
+
+-------------------------------
+OUTPUT FORMAT (STRICT)
+-------------------------------
+Return ONLY valid JSON. No explanation. No markdown.
+
+{
+  "dishes": [
+    {
+      "dish_name": "Name",
+      "bounding_box": [0, 0, 0, 0],
+      "gravy_detected": false,
+      "ingredients": [
+        {"name": "Ingredient", "weight_g": 100.0}
+      ]
+    }
+  ]
+}
+
+- Always include the 'bounding_box' property mapped to [0, 0, 0, 0] since this is a text entry without image coordinates.
+- Ensure 'gravy_detected' is a boolean.
+- Estimate realistic 'weight_g' for the ingredients inferred from the user's description (e.g. "2 rotis and dal" -> roti: ~80g, dal: ~150g).
+        """
+        
+        chat_completion = local_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.text}
+            ],
+            model=model_id,
+            temperature=0.0
+        )
+        
+        raw_content = chat_completion.choices[0].message.content
+        print(f"DEBUG: AI RAW CONTENT: {raw_content}")
+        
+        # Pre-process content to fix common LLM formatting issues
+        if "{" in raw_content and "}" in raw_content:
+            raw_content = raw_content[raw_content.find("{"):raw_content.rfind("}") + 1]
+
+        raw_content = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+        
+        try:
+            raw_ai_json = json.loads(raw_content)
+        except json.JSONDecodeError as e:
+            print(f"JSON Error after cleaning: {e}")
+            raw_content = re.sub(r'(\}|\]|"\w+")\s*\n\s*("\w+"\s*:)', r'\1,\n\2', raw_content)
+            raw_ai_json = json.loads(raw_content)
+        
+        # Validate through Pydantic (Using exactly the same FoodAnalysis logic as Vision endpoint)
+        validated_data = FoodAnalysis(**raw_ai_json)
+        
+        # Enrich the data by matching to the Supabase database
+        final_response = {"total_meal_calories": 0, "dishes":[]}
+        
+        for dish in validated_data.dishes:
+            dish_info = {
+                "dish_name": dish.dish_name,
+                "bounding_box": dish.bounding_box,
+                "gravy_detected": dish.gravy_detected,
+                "dish_total_calories": 0,
+                "ingredients":[]
+            }
+            
+            for ing in dish.ingredients:
+                db_macros = match_ingredient_in_db(ing.name, ing.weight_g)
+                dish_info["ingredients"].append({
+                    "ai_name": ing.name,
+                    "db_matched_name": db_macros["name_db"],
+                    "weight_g": ing.weight_g,
+                    "calories": db_macros["calories"],
+                    "protein": db_macros["protein"],
+                    "carbs": db_macros["carbs"],
+                    "fats": db_macros["fats"],
+                    "ai_confidence": db_macros["confidence"]
+                })
+                dish_info["dish_total_calories"] += db_macros["calories"]
+                final_response["total_meal_calories"] += db_macros["calories"]
+                
+            final_response["dishes"].append(dish_info)
+
+        return final_response
+
+    except Exception as e:
+        print(f"Error executing text analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/users/profile", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

@@ -187,3 +187,10 @@ class MealLogSuccessResponse(BaseModel):
     message: str
     meal: MealLogResponse
     daily_totals: DailyLogResponse
+
+class TextLogRequest(BaseModel):
+    """
+    Payload for text or voice-based meal logging entries.
+    """
+    text: str
+

@@ -174,3 +174,111 @@ Task 4: AI Bounding Box Rendering Fix
 - Programmatically computed explicit exact rendered heights and widths applying those bounds to mapping matrices.
 - Centered the AI detection matrices natively by padding the `dx` and `dy` letterbox space.
 - Successfully achieved 1:1 pixel-perfect mapping. The `[y_min, x_min, y_max, x_max]` coordinates received dynamically from the LLaMa backend now anchor securely onto specific raw ingredients exactly where the AI visually analyzed them.
+
+### Phase 7: Offline-to-Cloud Sync Architecture
+- **Objective:** Establish a robust mechanism to post local Isar data to the Supabase backend.
+- **Implementation:**
+  - Migrated core networking dependency from `http` to `dio`.
+  - Created `lib/core/network/sync_service.dart`.
+  - Implemented `syncOfflineMealsToCloud` logic to:
+    - Query Isar for `LocalMeal` instances where `supabaseIdIsNull()`.
+    - Loop through unsynced items.
+    - Post items via Dio to `/api/v1/meals/log`.
+    - Perform a write transaction back to Isar updating the returned `supabase_id`.
+  - Identified requirement for `/api/v1/meals/bulk-log` back-end endpoint for future optimization. Documented in `feature-to-add-later.md`.
+  - Documented bounding box calculations for future refinement in `feature-to-add-later.md`.
+
+  - Integrated `SyncService` background triggers into the application lifecycle:
+    - Initialized global `Provider<Dio>` and `Provider<SyncService>` for global dependency injection without context.
+    - Updated `lib/main.dart` to trigger `syncOfflineMealsToCloud` in `_AaharAppState.initState()` asynchronously so offline meals are synced on app launch.
+    - Appended `syncOfflineMealsToCloud` background trigger in `lib/features/dashboard/domain/daily_log_notifier.dart` (`addMeal`) to sync newly logged meals immediately.
+    - Fixed `MyApp` mismatch in `widget_test.dart` to ensure clean testing.
+
+
+### Phase 8: User Onboarding
+- **Objective:** Establish user profile local caching structure and set up the onboarding progression.
+- **Implementation:**
+  - Added `LocalUserProfile` Isar collection to `lib/core/database/local_schemas.dart`.
+  - Configured `LocalUserProfile` as a local singleton configuration (using `Id id = 1`).
+  - Added profile fields: name, weight, height, goal, dietPreference.
+  - Added target macro fields returned from backend algorithms.
+  - Added `isOnboardingComplete` tracking boolean.
+  - Created `AuthService` in `lib/features/onboarding/domain/auth_service.dart`:
+    - Handles formatting user form data and making POST requests to `/api/v1/users/profile`.
+    - Parses backend macro responses to a `LocalUserProfile`.
+    - Commits the user profile to local database synchronously.
+  - Implemented `onboardingStateProvider` routing logic:
+    - Reads initial `isOnboardingComplete` dynamically from `LocalUserProfile` mapping (singleton id = 1).
+    - `AaharApp` now conditionally checks the routing state to either render `DashboardScreen` or a placeholder Onboarding UI flow.
+  - **Bug Fix:** Encountered `IsarError: Missing TypeSchema` crashes on test devices when initializing Flutter due to adding the new collection but forgetting to register it.
+    - **Resolution:** Added `LocalUserProfileSchema` inside the `Isar.open` schema declarations list within `lib/core/database/database_provider.dart`.
+  - Built `OnboardingScreen` UI in `lib/features/onboarding/presentation/onboarding_screen.dart`:
+    - Created a scrollable `StatefulWidget` linked to Riverpod.
+    - Added modern, rounded, subtly filled `TextFormField` and `DropdownButtonFormField` entries for Name, Gender, Age, Weight, Height, Activity Level, Goal, and Diet.
+    - Attached a state-managed "Calculate My Macros" button that shows a Loading indicator overlay, builds a mapped payload, and invokes `authServiceProvider.createUserProfile()`.
+    - Integrated automatic App-level routing replacing the placeholder screen with the real `OnboardingScreen`.
+
+  - Refactored `DailyLogNotifier` in `lib/features/dashboard/domain/daily_log_notifier.dart`:
+    - When generating a fresh log for the current day, it explicitly fetches the `LocalUserProfile` configuration `id=1`.
+    - It dynamically maps `targetCalories` and `targetProteinG` from the cached profile rather than defaulting to hardcoded metrics.
+  - **Issue:** Encountered `DioException [connection timeout]` and `SocketException` while trying to sync onboarding data from physical Android device to laptop backend.
+  - **Identified Cause:** The mobile device could not route packets successfully over `10.20.16.245` (Wi-Fi adapter IP), likely due to the phone being connected via USB tethering/cable on a different subnet interface (`10.19.133.107`).
+  - **Bug Fix:** Hit a `DioException [bad response]` 422 Unprocessable Entity from FastAPI when submitting the onboarding form.
+    - **Investigation:** Read `backend/schemas.py` and discovered the `UserCreate` Pydantic model requires strict properties like `target_weight_kg`, array initializers for `allergies` and `medical_conditions`, and stringent Enum mapping parameters (`activity_level` specifically mapping `very active` to `very_active`).
+    - **Resolution:** Refactored the `payload` map in `lib/features/onboarding/presentation/onboarding_screen.dart` to strictly pass all defaulted and formatted values that the Python API expects.
+  - Refactored `OnboardingScreen` into a two-step pagination UI:
+    - `OnboardingScreen`: Captures primary physical body measurements (Age, Weight, Activity, Goal, Diet). Instead of submitting, it bundles to a map and pushes navigation.
+    - Added `OnboardingAdvancedScreen`: Accepts the basic maps and proceeds to request the deeper constraints (`region_preference`, `meals_per_day`, string-mapped `allergies`, and `medical_conditions`).
+    - Formats the allergies and conditions from comma-separated inputs to clean string Lists arrays safely on submission.
+  - Refactored `OnboardingScreen` into a two-step pagination UI:
+    - `OnboardingScreen`: Captures primary physical body measurements (Age, Weight, Activity, Goal, Diet). Instead of submitting, it bundles to a map and pushes navigation.
+    - Added `OnboardingAdvancedScreen`: Accepts the basic maps and proceeds to request the deeper constraints (`region_preference`, `meals_per_day`, string-mapped `allergies`, and `medical_conditions`).
+    - Formats the allergies and conditions from comma-separated inputs to clean string Lists arrays safely on API POST submission.
+
+### Phase 9: Text & Voice Meal Logging Pipeline
+- **Objective:** Add NLP ingestion methods for users to quickly describe meals conversationally (e.g. "I ate 2 rotis and some dal").
+- **Backend Implementations (`backend/main.py`):**
+  - Created `TextLogRequest(text: str)` Pydantic schema in `schemas.py`.
+  - Added `@app.post("/api/v1/analyze/text")` endpoint.
+  - Implemented the prompt instructing the local LLM (`gemma4:e2b`) to act as an Indian Nutritionist, extract structured JSON matching the visual representation exactly.
+  - Enforced a dummy `[0, 0, 0, 0]` bounding_box to maintain absolute schema parity with the vision tool (so Flutter parses both inputs identically).
+  - Iterated through ingredients using the same `match_ingredient_in_db()` embeddings function to guarantee the payload shape matches vision outputs.
+- **Frontend Implementations (`lib/features/food_logger/presentation/log_meal_screen.dart`):**
+  - Renamed the old `camera_screen.dart` to `log_meal_screen.dart` as it now acts as a multi-modal hub.
+  - Replaced the simple camera UI with a persistent bottom text bar supporting Voice typing (via `speech_to_text`), manual Text input, and Barcode scanning (via `mobile_scanner`).
+  - Implemented `_analyzeText()` POST request handler parallel to the vision logic.
+  - Responses successfully map to the `MealConfirmationSheet` identical to visual logs without any logic rewrites due to enforced backend schema parity.
+  - Handled Android compilation failures by migrating away from the outdated `simple_barcode_scanner` (which lacked modern Android SDK 34 packages like `android.view`, `android.graphics`) to the reliable `mobile_scanner` standard.
+  - **Barcode Integration (OpenFoodFacts API):**
+    - Built `_fetchBarcodeData()` to trigger upon successful `mobile_scanner` barcode detection.
+    - Sends a GET request directly to the public OpenFoodFacts API (`https://world.openfoodfacts.org/api/v0/product/{barcode}.json`).
+    - Dynamically maps macro objects (`energy-kcal`, `proteins`, `carbohydrates`, `fat`) safely.
+    - Assembles the response into the exact JSON specification required by `initializeFromAI()`.
+    - Populates the `MealConfirmationSheet` enabling immediate verification and "Save to Daily Log" functionality without involving the backend AI inference.
+
+### Phase 10: Workout Recommendation Engine
+- **Objective:** Add personalized gym and home workout regimes based on user attributes.
+- **Backend Implementations (`backend/workouts.py`):**
+  - Designed an independent FastAPI Router containing a static dictionary of three structured regimes: `PPL` (Push/Pull/Legs), `Full_Body`, and `Home_Bodyweight`.
+  - Built `recommend_workout(activity_level, goal)` that maps users to `Home_Bodyweight` if they are sedentary/light, `PPL` if they bulk and are active, and `Full_Body` dynamically as a fallback.
+  - Exposed via HTTP GET under `/api/v1/workouts/recommend`. Wire-framed correctly into the core FastAPI server `main.py` utilizing sub-routers.
+
+### Phase 10.1: Expand Workout Regime Datasets
+- **Objective:** Extend existing `PPL` and `Full_Body` templates to guarantee complete muscle coverage.
+- **Backend Implementations (`backend/workouts.py`):**
+  - Added `Incline Dumbbell Press` and `Lateral Raises` to `Push Day` for robust upper chest and shoulder development.
+  - Added `Face Pulls` and `Hammer Curls` to `Pull Day` to engage rear deltoids and brachialis.
+  - Injected `Romanian Deadlift`, `Leg Extensions`, and `Leg Curl Machine` into `Legs Day` maximizing quad and hamstring isolation.
+  - Supplemented `Full Body - Workout A` with `Dumbbell RDL` and `Dumbbell Bicep Curls`.
+  - Expanded `Full Body - Workout B` by adding `Dumbbell Chest Fly` and `Tricep Extensions`.
+
+### Phase 11: Local Exercise Logging Database Pipeline
+- **Objective:** Establish the Flutter local Isar schema architecture to cache the active workout plan and track daily exercise logs including reps and weight used.
+- **Implementation:**
+  - Added `@collection class LocalWorkoutPlan` representing the active plan as a cached singleton (`Id id = 1`) to ensure optimal query speeds and offline capability.
+  - Formatted the plan to store the nested schedule as `List<String> daysJson` serializing the workout strings to map around Isar's strict object limitations safely.
+  - Added `@collection class LocalExerciseLog` with `Id id = Isar.autoIncrement` logging each specific exercise performed natively into the database.
+  - Added `@Index() String? supabaseId` to establish a cloud-sync lock, preventing duplicated logs when the user reconnects and syncs.
+  - Established a strict `IsarLink<LocalDailyLog> dailyLog` relation, meaning all exercises cascade map strictly to their parent log enabling one-call UI summaries (Food + Workouts).
+  - Adopted `List<String> completedSetsJson` ensuring all historical progression constraints (reps and individual weight used per set) are safely maintained locally.
+  - Updated `database_provider.dart` to securely mount `LocalWorkoutPlanSchema` and `LocalExerciseLogSchema` into `Isar.open` on boot.

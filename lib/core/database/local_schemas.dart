@@ -60,3 +60,64 @@ class LocalMeal {
   // Relationship to the parent Daily Log
   final dailyLog = IsarLink<LocalDailyLog>();
 }
+
+@collection
+class LocalUserProfile {
+  /// Defines a singleton approach by strictly locking the ID to 1.
+  /// There is only expected to be one active user profile cached on the device.
+  Id id = 1;
+
+  String? name;
+  double? weightKg;
+  double? heightCm;
+  String? goal;
+  String? dietPreference;
+
+  // Cached target metrics returned by the remote backend
+  int? targetCalories;
+  int? targetProteinG;
+  int? targetCarbsG;
+  int? targetFatsG;
+  int? targetWaterMl;
+
+  // Gateway check for skipping onboarding flow
+  bool isOnboardingComplete = false;
+}
+
+@collection
+class LocalWorkoutPlan {
+  /// Defines a singleton approach by strictly locking the ID to 1.
+  /// This stores the currently active workout plan on the device.
+  Id id = 1;
+
+  String? planName;
+
+  /// Storing the daily schedule as serialized JSON to bypass Isar's nested object limitations.
+  List<String> daysJson = [];
+}
+
+@collection
+class LocalExerciseLog {
+  Id id = Isar.autoIncrement;
+
+  /// The Cloud UUID from Supabase. 
+  /// Null if this log was created offline and hasn't been synced to the server yet.
+  @Index()
+  String? supabaseId;
+
+  /// The exact day this exercise was performed. Zeroed out for daily queries.
+  @Index()
+  late DateTime date;
+
+  String? exerciseName;
+
+  /// Tracking exact reps and weight for each set as serialized JSON.
+  /// Example: ['{"reps": 10, "weight": 50}', '{"reps": 8, "weight": 55}']
+  List<String> completedSetsJson = [];
+
+  // Cloud Sync Status
+  bool isSyncedWithCloud = false;
+
+  // Relationship to the parent Daily Log
+  final dailyLog = IsarLink<LocalDailyLog>();
+}

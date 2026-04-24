@@ -5,7 +5,7 @@ import 'package:percent_indicator/percent_indicator.dart';
 
 import '../../../core/database/local_schemas.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../food_logger/presentation/camera_screen.dart';
+import '../../food_logger/presentation/log_meal_screen.dart';
 import '../domain/daily_log_notifier.dart';
 import 'widgets/macro_ring_card.dart';
 import 'widgets/meal_timeline_card.dart';
@@ -266,7 +266,7 @@ class DashboardScreen extends ConsumerWidget {
           // Push strictly onto the navigation stack
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const CameraScreen()),
+            MaterialPageRoute(builder: (context) => const LogMealScreen()),
           );
         },
       ),
