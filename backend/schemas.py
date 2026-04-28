@@ -194,3 +194,17 @@ class TextLogRequest(BaseModel):
     """
     text: str
 
+class WeightUpdateRequest(BaseModel):
+    weight_kg: float = Field(..., gt=20, lt=300)
+
+class WorkoutLogRequest(BaseModel):
+    user_id: UUID
+    date: date
+    exercise_name: str
+    sets_completed: int = Field(..., ge=0)
+    target_sets: int = Field(..., gt=0)
+    completed_sets_json: List[dict] = Field(default_factory=list)
+
+class WorkoutLogBulkRequest(BaseModel):
+    logs: List[WorkoutLogRequest]
+
