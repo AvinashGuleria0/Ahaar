@@ -1,3 +1,5 @@
+from datetime import datetime
+from uuid import UUID
 import os
 import base64
 import json
@@ -19,7 +21,10 @@ from schemas import (
     MealLogResponse, 
     DailyLogResponse, 
     MealLogSuccessResponse,
-    TextLogRequest
+    TextLogRequest,
+    WeightUpdateRequest,
+    WorkoutLogRequest,
+    WorkoutLogBulkRequest
 )
 from services import calculate_advanced_macros
 from workouts import router as workouts_router
@@ -510,3 +515,85 @@ async def log_meal(request: MealLogRequest):
     except Exception as e:
         print(f"Meal Log error: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@app.patch("/api/v1/users/profile/weight", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def update_weight(user_id: UUID, payload: WeightUpdateRequest):
+    try:
+        user_str_id = str(user_id)
+        # Fetch current user
+        user_res = supabase.table("users").select("*").eq("id", user_str_id).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        current_user = user_res.data[0]
+        
+        old_weight = current_user.get("weight_kg")
+        new_weight = payload.weight_kg
+        
+        # Only recalculate if difference > 1.0kg
+        needs_recalc = False
+        if old_weight is None or abs(old_weight - new_weight) >= 1.0:
+            needs_recalc = True
+            
+        update_data = {"weight_kg": new_weight}
+        
+        if needs_recalc:
+            # We map DB fields to the format calculate_advanced_macros expects 
+            # Note: We simulate a UserCreate dictionary
+            simulated_user_data = current_user.copy()
+            simulated_user_data["weight_kg"] = new_weight
+            
+            from schemas import UserCreate
+            try:
+                # Filter dictionary keys to match Pydantic model to avoid extra fields
+                uc = UserCreate(**simulated_user_data)
+                calculated_macros = calculate_advanced_macros(uc)
+                update_data.update(calculated_macros)
+            except Exception as parse_e:
+                print(f"Could not convert to UserCreate for recalculation: {parse_e}")
+                
+        
+        # Insert historical weight record
+        weight_history_payload = {
+            "user_id": user_str_id,
+            "weight_kg": new_weight,
+            "date": datetime.utcnow().date().isoformat()
+        }
+        # Ignore errors if weight_history doesn't exist yet as we requested it to be added.
+        try:
+            supabase.table("weight_history").insert(weight_history_payload).execute()
+        except Exception as e:
+            print(f"Failed to insert weight_history: {e}")
+
+        # Perform the actual update
+        upd_res = supabase.table("users").update(update_data).eq("id", user_str_id).execute()
+        if not upd_res.data:
+            raise HTTPException(status_code=400, detail="Failed to update user weight")
+            
+        return upd_res.data[0]
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Weight update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/workouts/log", status_code=status.HTTP_200_OK)
+async def log_workouts(payload: WorkoutLogBulkRequest):
+    try:
+        if not payload.logs:
+            return {"message": "No logs provided"}
+            
+        db_logs = []
+        for req in payload.logs:
+            d = req.model_dump()
+            d["user_id"] = str(d["user_id"])
+            d["date"] = d["date"].isoformat()
+            db_logs.append(d)
+            
+        # Using upsert so that on conflicts of (user_id, date, exercise_name) it overwrites
+        res = supabase.table("exercise_logs").upsert(db_logs).execute()
+        
+        return {"message": "Workouts successfully logged", "count": len(db_logs), "data": res.data}
+    except Exception as e:
+        print(f"Workout log error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
