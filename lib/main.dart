@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/database/database_provider.dart';
 import 'core/network/sync_service.dart';
+import 'core/services/notification_service.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
+import 'features/home/presentation/main_scaffold.dart';
 import 'features/onboarding/domain/auth_service.dart';
 import 'features/onboarding/presentation/onboarding_screen.dart';
 import 'core/theme/app_theme.dart';
@@ -36,8 +38,10 @@ class _AaharAppState extends ConsumerState<AaharApp> {
   void initState() {
     super.initState();
     // Trigger syncOfflineMealsToCloud in the background right after initialization
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(notificationServiceProvider).init();
       ref.read(syncServiceProvider).syncOfflineMealsToCloud().ignore();
+      ref.read(syncServiceProvider).syncOfflineWorkoutsToCloud().ignore();
     });
   }
 
@@ -51,7 +55,7 @@ class _AaharAppState extends ConsumerState<AaharApp> {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       home: isOnboardingComplete 
-          ? const DashboardScreen() 
+          ? const MainScaffold() 
           : const OnboardingScreen(),
       debugShowCheckedModeBanner: false,
     );

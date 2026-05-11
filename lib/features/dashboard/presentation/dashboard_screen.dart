@@ -9,6 +9,8 @@ import '../../food_logger/presentation/log_meal_screen.dart';
 import '../domain/daily_log_notifier.dart';
 import 'widgets/macro_ring_card.dart';
 import 'widgets/meal_timeline_card.dart';
+import '../../profile/domain/profile_notifier.dart';
+
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -17,9 +19,14 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // State Management Observer
     final dailyLogState = ref.watch(dailyLogProvider);
+    final userProfileState = ref.watch(userProfileStreamProvider);
 
-    // Auth Pipeline (Dummy for now, ready for later integration)
-    final String greetingName = "Avinash"; 
+    // Auth Pipeline (Reactive extraction from local singleton)
+    final String greetingName = userProfileState.when(
+      data: (profile) => profile?.name ?? "User",
+      loading: () => "...",
+      error: (_, __) => "User",
+    );
 
     final macroColors = Theme.of(context).extension<MacroColors>();
 
@@ -33,14 +40,20 @@ class DashboardScreen extends ConsumerWidget {
           // (Can pipe this from a UserProfile provider later)
           final double targetCals = dailyLog?.targetCalories ?? 2500;
           final double targetPro = dailyLog?.targetProtein ?? 150;
-          final double targetCarbs = 200; // Hardcoded default for visual phase
-          final double targetFats = 70;   // Hardcoded default for visual phase
+          final double targetCarbs = dailyLog?.targetCarbs ?? 200;
+          final double targetFats = dailyLog?.targetFats ?? 70;
 
           // Consumed metrics
           final double consumedCals = dailyLog?.consumedCalories ?? 0.0;
           final double consumedPro = dailyLog?.consumedProtein ?? 0.0;
           final double consumedCarbs = dailyLog?.consumedCarbs ?? 0.0;
           final double consumedFats = dailyLog?.consumedFats ?? 0.0;
+          
+          // Hydration Metrics
+          final double targetWater = dailyLog?.targetWaterLiters ?? 2.5;
+          final double consumedWater = dailyLog?.consumedWaterLiters ?? 0.0;
+          final bool isHeatBoostActive = dailyLog?.isHeatBoostActive ?? false;
+          final double waterPercent = (consumedWater / (targetWater > 0 ? targetWater : 1.0)).clamp(0.0, 1.0);
 
           // Calculate overall calorie progress
           final double calDiff = targetCals - consumedCals;
@@ -174,6 +187,110 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // 3.5 HYDRATION TRACKER
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          if (isHeatBoostActive)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.wb_sunny, color: Colors.orange, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Hot day! +500ml added to target',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.water_drop, color: Colors.blueAccent, size: 32),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Water Intake',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    LinearPercentIndicator(
+                                      animation: true,
+                                      lineHeight: 8.0,
+                                      padding: EdgeInsets.zero,
+                                      percent: waterPercent,
+                                      barRadius: const Radius.circular(4),
+                                      progressColor: Colors.blueAccent,
+                                      backgroundColor: Colors.blueAccent.withValues(alpha: 0.15),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${(consumedWater * 1000).toInt()} / ${(targetWater * 1000).toInt()} ml',
+                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => ref.read(dailyLogProvider.notifier).addWater(0.25),
+                                icon: const Icon(Icons.local_drink, size: 18),
+                                label: const Text('+250ml'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blueAccent,
+                                  side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.5)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () => ref.read(dailyLogProvider.notifier).addWater(0.5),
+                                icon: const Icon(Icons.water_drop, size: 18),
+                                label: const Text('+500ml'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blueAccent,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),

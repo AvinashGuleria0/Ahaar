@@ -33,9 +33,11 @@ class AuthService {
   /// Receives the configured macro guidelines and caches the profile locally.
   Future<void> createUserProfile(Map<String, dynamic> userData) async {
     try {
-      // 1. Assign the mock authorized user_id and merge userData variables
+      // 1. If we have a cached profile with an existing user_id, we shouldn't create a new one but rather update.
+      // But since this is createUserProfile, we will send the payload without user_id, 
+      // or if we must send a mock, we don't, because the backend UserCreate doesn't expect user_id.
+      // Looking at `UserCreate` in `backend/schemas.py`, it does not require `user_id`.
       final payload = {
-        "user_id": "123e4567-e89b-12d3-a456-426614174000",
         ...userData,
       };
 
@@ -54,6 +56,8 @@ class AuthService {
         // 3. Assemble Local Configuration Document
         final profile = LocalUserProfile()
           ..id = 1
+          ..userId = (targets['id'] as String?) // Backend returns 'id' (UUID)
+          ..authId = (targets['auth_id'] as String?)
           ..name = userData['name'] as String?
           ..weightKg = (userData['weight_kg'] as num?)?.toDouble()
           ..heightCm = (userData['height_cm'] as num?)?.toDouble()
@@ -67,7 +71,7 @@ class AuthService {
           ..targetWaterMl = (targets['target_water_ml'] as num?)?.toInt() ?? 2500
           ..isOnboardingComplete = true;
 
-        // 4. Synchronously write the completed state into local storage
+        // 4. Synchronously write the completed state into local storage 
         await isar.writeTxn(() async {
           await isar.localUserProfiles.put(profile);
         });
@@ -84,6 +88,76 @@ class AuthService {
       rethrow;
     }
   }
+
+  /// Updates the user's weight dynamically, fetching recalculated macros if applicable.
+  /// Returns [true] if the weight change triggered a macro update, [false] otherwise.
+  Future<bool> updateUserWeight(double newWeightKg) async {
+    try {
+      final profile = isar.localUserProfiles.getSync(1);
+      final String? userId = profile?.userId;
+      
+      if (userId == null) {
+        throw Exception('User ID is missing from local profile. Cannot update weight on backend.');
+      }
+      
+      // 1. Perform API PATCH Request (Query Param user_id + Body payload)
+      final response = await dio.patch(
+        '$baseUrl/api/v1/users/profile/weight?user_id=$userId',
+        data: {'weight_kg': newWeightKg},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        
+        // Safety parsing
+        final targets = data['profile'] ?? data;
+
+        // 2. Open synchronous write transaction to Isar
+        bool didMacrosChange = false;
+        
+        isar.writeTxnSync(() {
+          final profile = isar.localUserProfiles.getSync(1);
+          if (profile != null) {
+            profile.weightKg = newWeightKg;
+            
+            // Check if targetCalories shifted to fire the SnackBar notification
+            final newCalories = (targets['target_calories'] as num?)?.toInt();
+            if (newCalories != null && profile.targetCalories != newCalories) {
+              didMacrosChange = true;
+              
+              profile.targetCalories = newCalories;
+              profile.targetProteinG = (targets['target_protein_g'] as num?)?.toInt() ?? profile.targetProteinG;
+              profile.targetCarbsG = (targets['target_carbs_g'] as num?)?.toInt() ?? profile.targetCarbsG;
+              profile.targetFatsG = (targets['target_fats_g'] as num?)?.toInt() ?? profile.targetFatsG;
+              profile.targetWaterMl = (targets['target_water_ml'] as num?)?.toInt() ?? profile.targetWaterMl;
+            }
+            
+            isar.localUserProfiles.putSync(profile);
+          }
+        });
+
+        print('AuthService: Weight updated. Macros changed: $didMacrosChange');
+        return didMacrosChange;
+      } else {
+        throw Exception('Failed to update weight on server.');
+      }
+    } on DioException catch (e) {
+      // 3. Offline fallback
+      print('AuthService Offline Fallback: Saving weight locally. Error: $e');
+      
+      isar.writeTxnSync(() {
+        final profile = isar.localUserProfiles.getSync(1);
+        if (profile != null) {
+          profile.weightKg = newWeightKg;
+          isar.localUserProfiles.putSync(profile);
+        }
+      });
+      return false; // Macros definitely didn't change offline
+    } catch (e) {
+      print('AuthService Error during weight update: $e');
+      rethrow;
+    }
+  }
 }
 
 /// Global provider to track whether the user has completed onboarding and can access the Dashboard.
@@ -93,4 +167,3 @@ final onboardingStateProvider = StateProvider<bool>((ref) {
   final profile = isar.localUserProfiles.getSync(1);
   return profile?.isOnboardingComplete ?? false;
 });
-

@@ -21,12 +21,17 @@ class LocalDailyLog {
   // Daily Targets
   double targetCalories = 0.0;
   double targetProtein = 0.0;
+  double targetCarbs = 0.0;
+  double targetFats = 0.0;
+  double targetWaterLiters = 2.5;
+  bool isHeatBoostActive = false;
 
   // Running Totals (Consumed)
   double consumedCalories = 0.0;
   double consumedProtein = 0.0;
   double consumedCarbs = 0.0;
   double consumedFats = 0.0;
+  double consumedWaterLiters = 0.0;
 
   // Cloud Sync Status
   bool isSyncedWithCloud = false;
@@ -67,10 +72,15 @@ class LocalUserProfile {
   /// There is only expected to be one active user profile cached on the device.
   Id id = 1;
 
+  String? userId;
+  String? authId;
+
+
   String? name;
   double? weightKg;
   double? heightCm;
   String? goal;
+  String? activityLevel;
   String? dietPreference;
 
   // Cached target metrics returned by the remote backend
@@ -110,6 +120,9 @@ class LocalExerciseLog {
   late DateTime date;
 
   String? exerciseName;
+
+  /// Target sets assigned from the workout plan
+  int targetSets = 0;
 
   /// Tracking exact reps and weight for each set as serialized JSON.
   /// Example: ['{"reps": 10, "weight": 50}', '{"reps": 8, "weight": 55}']

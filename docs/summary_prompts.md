@@ -272,7 +272,7 @@ Task 4: AI Bounding Box Rendering Fix
   - Supplemented `Full Body - Workout A` with `Dumbbell RDL` and `Dumbbell Bicep Curls`.
   - Expanded `Full Body - Workout B` by adding `Dumbbell Chest Fly` and `Tricep Extensions`.
 
-### Phase 11: Local Exercise Logging Database Pipeline
+### Phase 10.2: Local Exercise Logging Database Pipeline
 - **Objective:** Establish the Flutter local Isar schema architecture to cache the active workout plan and track daily exercise logs including reps and weight used.
 - **Implementation:**
   - Added `@collection class LocalWorkoutPlan` representing the active plan as a cached singleton (`Id id = 1`) to ensure optimal query speeds and offline capability.
@@ -282,3 +282,158 @@ Task 4: AI Bounding Box Rendering Fix
   - Established a strict `IsarLink<LocalDailyLog> dailyLog` relation, meaning all exercises cascade map strictly to their parent log enabling one-call UI summaries (Food + Workouts).
   - Adopted `List<String> completedSetsJson` ensuring all historical progression constraints (reps and individual weight used per set) are safely maintained locally.
   - Updated `database_provider.dart` to securely mount `LocalWorkoutPlanSchema` and `LocalExerciseLogSchema` into `Isar.open` on boot.
+
+### Phase 10.3: Workout Domain & Offline First Reactivity
+- **Objective:** Implement the logical Riverpod layer to seamlessly synchronize, fetch, and locally react to workout completions instantly.
+- **Implementation:**
+  - Added `String? activityLevel` to the `LocalUserProfile` schema to ensure we explicitly capture that dimension natively during onboarding, powering accurate backend queries.
+  - Created `lib/features/workouts/domain/workout_notifier.dart` exporting a `WorkoutNotifier` (`AsyncNotifier<LocalWorkoutPlan?>`).
+  - `build()` method utilizes extremely fast Isar resolution. If `LocalWorkoutPlan (id:1)` exists locally, it yields instantly via cache. If absent, it fetches the user profile natively, passes `activity_level` and `goal` to `/api/v1/workouts/recommend`, formats `daysJson`, saves to Isar, and inherently handles offline fallbacks cleanly.
+  - Deployed `logSetComplete(exerciseName, reps, weight)` executing a transactional Isar write. Natively looks up (or creates) `LocalDailyLog` and `LocalExerciseLog` respectively before tracking the new set into `completedSetsJson` and appending `dailyLog` bounds.
+  - Injected `dailyExerciseLogProvider`, a fast `StreamProvider<List<LocalExerciseLog>>` monitoring `.dateEqualTo(today).watch(fireImmediately: true)`. This securely isolates the daily tracking stream away from the broader static `WorkoutPlan`, enabling reactive UI checkboxes to toggle flawlessly the exact millisecond `logSetComplete()` finishes processing.
+
+### Phase 10.4: Core Navigation & Workout UI
+- **Objective:** Establish the root app navigation scaffolding and build a dynamic offline-reactive UI for the workout tracking.
+- **Implementation:**
+  - Created `MainScaffold` utilizing a `BottomNavigationBar` and an `IndexedStack` to preserve state flawlessly between the **Diet** (`DashboardScreen`) and **Workout** (`WorkoutScreen`) tabs without rebuilding.
+  - Re-routed `main.dart` natively from `DashboardScreen` directly to `MainScaffold`.
+  - Built `WorkoutScreen` as a highly performant `ConsumerStatefulWidget` watching the global `workoutNotifierProvider`.
+  - Engineered a horizontal `ChoiceChip` list natively parsing `plan.daysJson`. This brilliantly decouples the UI from strict physical days (allowing dynamic routines like PPL or Full Body) by allowing users to toggle between available routine days gracefully.
+  - Mapped individual exercises into distinct premium `Card` layouts, dynamically extracting `targetSets` and rendering a wrapped row of animated circle indicators.
+  - Linked `dailyExerciseLogProvider` to dynamically cross-reference the exact count of logged sets per exercise. Uncompleted sets render as `Icons.circle_outlined`.
+  - Deployed an interactive popup `showDialog` when an empty circle is tapped, requesting the exact `weight (kg)` and `reps completed` (pre-filled by parsing backend targets natively via regex) to execute `logSetComplete()` and perfectly satisfy the Phase 11 progressive overload requirements.
+
+### Phase 10.5: 7-Day Cycle UI & Build Fixes
+- **Objective:** Update the workout UI to explicitly support a repeating 7-day mapping cycle and resolve local Gradle cache build failures.
+- **Implementation:**
+  - Resolved a severe `metadata.bin` Gradle cache corruption via an aggressive CLI purge of `~/.gradle/caches/`, unlocking the local Flutter build pipeline.
+  - Refactored `WorkoutScreen` to explicitly loop 7 independent `ChoiceChips` representing the core calendar week (`Mon` -> `Sun`).
+  - Utilized `DateTime.now().weekday - 1` as the default `_selectedDayOfWeek` to ensure the UI instantly lands on the user's correct physical day.
+  - Implemented dynamic mapping logic (`index % days.length`) so any routine duration mathematically cascades infinitely throughout the week (e.g., PPL will map Push to Mon, Pull to Tue, Legs to Wed, Push to Thu, etc.), flawlessly achieving the required 7-day cyclical mapping.
+
+### Phase 11: Dynamic Kinetics (Weight Adjustments) & Cloud Workout Syncing
+- **Objective:** Allow users to update their body weight dynamically, automatically recalculate daily targets, and securely sync completed offline workout metrics to the Cloud.
+- **Backend Implementations (`backend/schemas.py` & `backend/main.py`):**
+  - **Dynamic Target Recalculation:** Developed `WeightUpdateRequest` and implemented a stateful `PATCH /api/v1/users/profile/weight` endpoint.
+  - Implemented boundary protections: The backend recalculates TDEE and target macros utilizing `calculate_advanced_macros()` *only* if the weight shift strictly exceeds `1.0 kg`, saving unnecessary computation and preventing target thrashing for users over minor water weight fluctuations.
+  - Incorporated a seamless `weight_history` ingestion trigger storing the historical record (user_id, date, weight) before appending the recalculation into the parent `users` database table avoiding irreversible data loss limits.
+  - **Workout Log Cloud Sync Engine:** Formulated `WorkoutLogRequest` mapping exact sets_completed json array matrices originating from the Flutter client structure. Created `WorkoutLogBulkRequest` resolving high-volume offline caching dumps.
+  - Established the `POST /api/v1/workouts/log` route operating securely on an upsert protocol mapping constraints across `(user_id, date, exercise_name)`. This provides absolute idempotency resolving potential duplicate packet transmissions gracefully under unstable gym internet environments.
+
+### Phase 11.1: Frontend Weight Sync & Reactivity
+- **Objective:** Empower users to log weight changes internally from Flutter to the FastAPI Cloud backend, subsequently caching the newly formulated body-composition macros and rendering them dynamically without app restart.
+- **Frontend Implementations (`lib/features/onboarding/domain/auth_service.dart` & `lib/features/dashboard/domain/daily_log_notifier.dart`):**
+  - Created `updateUserWeight(double newWeightKg)` using `dio.patch` transmitting network data properly to Python's Profile infrastructure. 
+  - Integrated explicit boolean mapping (`didMacrosChange`) which analytically dissects the mutated Python payload vs Isar's local baseline cache. This guarantees we only fire the `SnackBar` visual animation *"Your daily calorie targets have been adjusted"* when explicit threshold metrics genuinely shift. 
+  - Handled the *Gym Basement Scenario* comprehensively: Wrapped a fast `DioException` `try/catch` fallback pipeline securely committing the offline `newWeightKg` to locally preserve the history even natively without 5G access.
+  - Engineered `.refreshTargetsFromProfile()` globally directly inside the Riverpod `DailyLogNotifier` Async Notifier. 
+  - Programmed rigorous Retroactive Data Protection natively checking `DateTime(now.year, now.month, now.day)`. This ensures when targets adapt during bulk vs cut transitions, historic daily-log UI widgets faithfully retain the exact metrics they aimed for that specific moment frozen in time avoiding systemic ring mutation bugs.
+
+### Phase 11.1 (Hotfix): Flutter Build & Syntax Resolution
+- **Objective:** Resolve catastrophic `assembleDebug` Gradle build failures caused by corrupted dependency injection paths and rogue brace closures inside Dart domain files.
+- **Implementations:**
+  - **`auth_service.dart` Re-Architecture:** The initial automated script injected `updateUserWeight` outside of the `AuthService` class scope, breaking the `dio` and `baseUrl` Riverpod context entirely. Ripped out and fully rewrote the domain file, cleanly nesting the method *inside* the instantiated object bridging the `ref.watch(dioProvider)` properly.
+  - **`daily_log_notifier.dart` Closure Repair:** Restored the missing `});` bounding bracket that terminated the `dailyLogProvider` export mapping, resolving the global `AsyncNotifierProvider` syntax collisions that prevented Flutter compilation.
+  - Re-executed `flutter analyze` ensuring zero unresolved static analysis errors and achieving clean `assembleDebug` Android bindings.
+
+### Phase 11.2: Profile Screen & Navigation Integration
+- **Objective:** Build a central hub for users to view their active parameters, monitor target macros, and log dynamic weight changes seamlessly.
+- **Implementations:**
+  - **Reactivity Domain:** Created `profile_notifier.dart` exposing an Isar `.watchObject(1)` Stream. This effortlessly synchronizes the Profile UI the exact millisecond the backend confirms a weight update, without manually managing `setState`.
+  - **Sleek UI:** Developed `profile_screen.dart` featuring a dynamic Hero section. Integrated Phase 5 `MacroColors` extensions to unify the visual theme between the dashboard rings and the profile grid.
+  - **Boundary Validation:** Enforced a frontend validation bound (`weight > 20 && weight < 300`) on the numeric `TextField`, preventing users from accidentally corrupting their macros via typos before reaching the FastAPI server.
+  - **Reset/Logout Utility:** Embedded an `Icons.logout` Dev/Reset trigger calling `isar.clear()` and explicitly dropping the `onboardingStateProvider` routing hook back to absolute zero, allowing for seamless end-to-end testing of the user flow.
+  - **Navigation Scaffold:** Expanded `main_scaffold.dart`'s `IndexedStack` and `BottomNavigationBar` to incorporate the 3rd 'Profile' tab routing cleanly to the new ecosystem.
+
+### Phase 11.2 (Hotfix 2): Daily Log Notifier Trailing Syntax
+- **Objective:** Fix compilation block (`Expected a declaration, but got '}'`).
+- **Implementations:**
+  - Found an errant duplicate `});});` at the tail end of `lib/features/dashboard/domain/daily_log_notifier.dart` left by a patching script malfunction.
+  - Successfully trimmed the extra closure restoring the proper structure for `dailyLogProvider`.
+  - Cleared `flutter analyze` ensuring the frontend builds seamlessly.
+
+### Phase 11.3 (Hotfix): Sync Engine Payload & Auth Identity Alignment
+- **Objective:** Resolve `422 Unprocessable Content` and `404 Not Found` API errors occurring when Flutter attempts to synchronize offline meals and update weight via the backend.
+- **Implementations:**
+  - **Local Identity Mapping:** Modified `LocalUserProfile` inside `local_schemas.dart` adding `userId` and `authId` string attributes, establishing a local caching mechanism for the Supabase primary keys.
+  - **Dynamic User Authentication:** Refactored `auth_service.dart`. `createUserProfile` now dynamically extracts the `id` and `auth_id` from the backend's `UserResponse` object and permanently writes them to the Isar singleton, stripping out the previously hardcoded `123e4567...` mock user ID.
+  - **Sync Payload Remediation:** Fixed `sync_service.dart`. Adjusted the payload JSON keys to strictly map to the exact `MealLogRequest` Python backend schema (e.g., `meal_cals` -> `meal_calories`, `meal_protein` -> `meal_protein_g`). Enforced safe initialization of defaulted backend variables (`meal_fiber_g`, `meal_sugar_g`, `meal_sodium_mg`).
+  - **Timestamp Normalization:** Sanitized the offline `loggedAt` DateTime inside `sync_service.dart` using `.toIso8601String().split('T')[0]` ensuring strictly formatted `YYYY-MM-DD` strings are sent to Python's strict Pydantic `date` parser.
+  - Database Migration: Instructed the execution of `build_runner` to successfully generate the updated `local_schemas.g.dart` schema representing the newly added user identifiers.
+
+### Phase 11.4: Dynamic Dashboard Personalization
+- **Objective:** Replace hardcoded "Avinash" greeting with the user's real name fetched from the local Isar database.
+- **Implementations:**
+  - **Reactivity Integration:** Updated `dashboard_screen.dart` to consume `userProfileStreamProvider`, converting the Dashboard into a dynamically personalized experience.
+  - **Graceful Fallbacks:** Implemented state-aware greeting logic (Loading -> "...", Data -> `profile.name`, Error -> "User") to ensure a smooth UI transition while the local database stream initializes.
+
+### Phase 11.5: Dynamic Target Macros (Carbs & Fats)
+- **Objective:** Eliminate hardcoded visual placeholders for Carbs and Fats metrics on the Dashboard, piping real AI-computed targets natively from the Profile stream.
+- **Implementations:**
+  - **Schema Extension:** Expanded `LocalDailyLog` inside `local_schemas.dart` adding `targetCarbs` and `targetFats` doubles, fully aligning the daily snapshot schema with the `LocalUserProfile` master variables.
+  - **Domain Logic Alignment:** Refactored `DailyLogNotifier` (`daily_log_notifier.dart`) to explicitly assign and update `targetCarbs` and `targetFats` within both the `build()` and `refreshTargetsFromProfile()` methods, guaranteeing historical immutability while adopting new backend updates.
+  - **UI Binding:** Modified `DashboardScreen` to dynamically map `dailyLog?.targetCarbs` and `dailyLog?.targetFats` instead of the static `200` and `70` placeholders, effectively completing a 100% data-driven dashboard.
+
+### Phase 11.6: Gym Progress Cloud Synchronization
+- **Objective:** Backup offline completed workout sets and target progressions to the Supabase Cloud gracefully on boot.
+- **Implementations:**
+  - **Isar Schema Update:** Added `targetSets` integer to `LocalExerciseLog` inside `local_schemas.dart` to strictly capture target thresholds and empower the backend with comprehensive "Target vs Actual" data analytics.
+  - **Local Tracking Propagation:** Refactored `WorkoutNotifier.logSetComplete()` to natively accept and persist the `targetSets` parameter. Adjusted `WorkoutScreen` UI popup bindings to pass the targets accurately directly from the active JSON workout plan.
+  - **Sync Payload Generation:** Built `syncOfflineWorkoutsToCloud()` in `sync_service.dart`. Executed a transactional bulk aggregation:
+    - Queried Isar for `LocalExerciseLog`s where `supabaseIdIsNull()`.
+    - Decoded internal Isar string representation (`completedSetsJson`) back into strict Python dictionary structs using `jsonDecode`.
+    - Wrapped payload inside the backend's strict `WorkoutLogBulkRequest` object (`{"logs": [...]}`).
+  - **Reactivity Boot Hooks:** Expanded `_AaharAppState.initState()` to natively trigger `ref.read(syncServiceProvider).syncOfflineWorkoutsToCloud().ignore();` in parallel with meal syncs ensuring instant backend consolidation upon app launch.
+
+## Phase 12: Context-Aware Engine (Weather & Hydration)
+
+### Task 1: Building the Engine Architecture
+- **Objective:** Establish the foundation to securely fetch the user's local weather without draining the battery or breaching privacy.
+- **Implementations:**
+  - **Dependency Injection:** Integrated latest stable builds of `geolocator` and `flutter_local_notifications` via `pubspec.yaml`. Addressed the Android compilation crash by dynamically enabling `isCoreLibraryDesugaringEnabled` within `android/app/build.gradle.kts`.
+  - **Native Permissions:** Fortified `AndroidManifest.xml` (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) and `Info.plist` (`NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`) strictly abiding by OS-level privacy sandbox rules.
+  - **Service Layer (`context_service.dart`):** Engineered a robust Riverpod-injectable service. Implemented `_requestPermission()` to securely negotiate geolocation hooks and gracefully abort if the user denies access (silent UX fallback). Engineered `fetchLocalWeather()` mapping active GPS bounds directly to the free Open-Meteo REST API, returning a strongly typed Dart 3 Record `({double temperature, int weatherCode})?`.
+  - **Roadmap Maintenance:** Staged the explicit requirement for an Isolate/Background Worker engine inside `docs/feature-to-add-later.md` to safely manage out-of-bounds app lifecycle notifications in the future.
+
+### Task 2: Dynamic Hydration Logic & Schema
+- **Objective:** Track daily water consumption and proactively increase baseline requirements if the user's local context (extreme heat) demands it.
+- **Implementations:**
+  - **Database Expansion:** Added `targetWaterLiters`, `consumedWaterLiters`, and `isHeatBoostActive` boolean flag to `LocalDailyLog` (`local_schemas.dart`).
+  - **Context Integration:** Upgraded `DailyLogNotifier.build()` and `refreshTargetsFromProfile()` to synchronously await `fetchLocalWeather()`. If `temperature > 35.0` °C, it natively boosts the daily target by `0.5 L` (500ml) and sets `isHeatBoostActive = true` before caching the snapshot into Isar.
+  - **Dashboard Analytics:** Designed and injected a dedicated Hydration Tracker Card immediately below the Macro Rings in `DashboardScreen`. It formats standard liters into milliliters (e.g., `1500 / 3000 ml`), displays a dynamic `☀️ Hot day! +500ml added to target` banner if the weather boost was triggered, and provides dual action buttons (`+250ml` and `+500ml`) perfectly mapping back to the state notifier.
+
+
+
+
+Phase 11.2 (Hotfix): Android Build & API URI Resolution
+- **Objective:** Resolve catastrophic `assembleDebug` Gradle build failures and fix URL formatting errors preventing user profile registration.
+- **Implementations:**
+  - **Android Desugaring & MultiDex:** Enabled `isCoreLibraryDesugaringEnabled = true` and `multiDexEnabled = true` in `android/app/build.gradle.kts`. Added `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")` to dependencies to support Java 8+ features required by `flutter_local_notifications`.
+  - **Gradle Plugin Conflict Resolution:** Removed forced `sourceCompatibility` and `targetCompatibility` overrides from the global `allprojects` block in `android/build.gradle.kts`. This resolved the "package android.graphics does not exist" compilation errors by allowing the Android Gradle Plugin to correctly resolve the boot classpath for plugin modules natively.
+  - **JVM Target Synchronization:** Aligned Java and Kotlin compatibility versions within the app module configuration to support older legacy plugins (`speech_to_text`) requiring Java 11.
+  - **API URI Hardening:** Identified that `FormatException: Scheme not starting with alphabetic character` was caused by missing `http://` in the `API_URL` dart-define. Formulated corrective recommendation to use `http://10.252.46.190:8000` in the run configuration.
+
+### Task 3: Local Push Notifications (AI Coaching)
+- **Objective:** Establish the foundation for AI coaching via intelligent local push notifications without server-side cron jobs.
+- **Implementations:**
+  - **Native Integration:** Initialized `flutter_local_notifications` and the `timezone` package inside a new `NotificationService`. Hardened the platform configuration by explicitly requesting Android 13+ `POST_NOTIFICATIONS` and `SCHEDULE_EXACT_ALARM` permissions directly in the manifest and Dart engine.
+  - **Contextual Weather Alert:** Hooked `triggerWeatherAlert()` into the `ContextService`. Natively detects if local temperature exceeds 35°C and pushes an immediate hydration warning (`☀️ Extreme Heat Warning`). Implemented a runtime lock (`_hasFiredWeatherAlertToday`) to prevent notification spam across multiple app launches.
+  - **Scheduled Gym Motivation:** Intercepted the offline `LocalWorkoutPlan` payload parsing inside `WorkoutNotifier.build()`. If the user has `0` completed sets recorded for the current day, it natively maps the `day_name` (e.g. "Pull Day") and places a scheduled notification alarm exclusively for 5:00 PM (`17:00`) today.
+  - **Time-Travel Safeguards:** Engineered strict chronological validation bounds (`scheduledDate.isBefore(now)`) ensuring the gym coach does not accidentally trigger historical alerts if the app is launched past 5:00 PM.
+
+## Phase 13: Dynamic AI Model Switching Engine
+
+### Task 1: Scalable Inference Routing
+- **Objective:** Establish a dynamic, user-facing toggle to hot-swap between multiple AI models (OpenRouter, Groq, Local Ollama) directly from the app interface without touching backend logic.
+- **Implementations:**
+  - **API Routing (FastAPI):** Refactored `analyze_vision()` and `analyze_text()` in `main.py` to natively accept a dynamic `ai_model` string parameter (via Form Data or Query String). Engineered a factory function (`get_ai_client`) to instantly switch the base URL, API keys, and model target IDs.
+  - **Provider Contexts:**
+    - `openrouter`: `https://openrouter.ai/api/v1` targeting `qwen/qwen2.5-vl-72b-instruct:free`.
+    - `groq`: `https://api.groq.com/openai/v1` targeting `meta-llama/llama-4-scout-17b-16e-instruct`.
+    - `local`: `http://localhost:11434/v1` natively bounding to `gemma4:e4b`.
+  - **Frontend UI Overlay (`log_meal_screen.dart`):** Attached a responsive Riverpod/Stateful `DropdownButton` explicitly into the `AppBar` to control `_selectedAiModel`. Refactored the `_captureAndAnalyze()` image uploader to silently bind `request.fields['ai_model']` and appended query params strictly onto the `_analyzeText()` request logic.
+
+### Task 2: Model Endpoint Resolution
+- **Objective:** Fix "404 No endpoints found" error caused by deprecated or restricted free model suffixes on OpenRouter.
+- **Implementations:**
+  - **Endpoint Correction:** Migrated the backend inference target from \`qwen/qwen2.5-vl-72b-instruct:free\` to \`qwen/qwen2.5-vl-72b-instruct\` in \`main.py\`. This resolved the 404 error by targeting the stable production endpoint rather than the potentially restricted or renamed free-tier suffix.

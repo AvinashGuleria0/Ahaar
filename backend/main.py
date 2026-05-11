@@ -5,7 +5,7 @@ import base64
 import json
 import re
 import uuid
-from fastapi import FastAPI, UploadFile, File, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -45,12 +45,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Clients
-# Initialize Local Ollama Client (No API key needed)
-local_client = OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama",
-)
+def get_ai_client(ai_model: str):
+    if ai_model == 'openrouter':
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY", "dummy"),
+        ), "qwen/qwen2.5-vl-72b-instruct"
+    elif ai_model == 'groq':
+        return OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=os.getenv("GROQ_API_KEY", "dummy"),
+        ), "meta-llama/llama-4-scout-17b-16e-instruct"
+    else: # local
+        return OpenAI(
+            base_url="http://localhost:11434/v1",
+            api_key="ollama",
+        ), "gemma4:e4b"
+
+# Initialize Supabase and Embeddings
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 print("🧠 Loading Local Embedding Model...")
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -106,8 +118,11 @@ def match_ingredient_in_db(ingredient_name: str, weight_g: float):
 
 # --- THE MAIN ENDPOINT ---
 @app.post("/api/v1/analyze/vision")
-async def analyze_vision(file: UploadFile = File(...)):
-    print(f"📥 Received file: {file.filename} ({file.content_type})")
+async def analyze_vision(
+    file: UploadFile = File(...),
+    ai_model: str = Form("openrouter")
+):
+    print(f"📥 Received file: {file.filename} ({file.content_type}) for model: {ai_model}")
     try:
         # 1. Read the image uploaded by the mobile app
         contents = await file.read()
@@ -116,10 +131,10 @@ async def analyze_vision(file: UploadFile = File(...)):
         print("🖼️ Image encoding successful.")
         
         # Determine model
-        model_id = "gemma4:e2b"
+        client, model_id = get_ai_client(ai_model)
 
-        # 2. Ask local Ollama model to analyze the image
-        print(f"🚀 Sending to local Ollama model: {model_id}...")
+        # 2. Ask model to analyze the image
+        print(f"🚀 Sending to AI model: {model_id}...")
        
         system_prompt = """ 
             You are an expert Indian nutritionist and computer vision assistant specializing in meal analysis.
@@ -216,7 +231,7 @@ CRITICAL CONSTRAINTS
 
         """
         
-        chat_completion = local_client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -304,10 +319,13 @@ CRITICAL CONSTRAINTS
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/analyze/text")
-async def analyze_text(request: TextLogRequest):
-    print(f"📥 Received text log: {request.text}")
+async def analyze_text(
+    request: TextLogRequest,
+    ai_model: str = "openrouter" # Accept from query/JSON
+):
+    print(f"📥 Received text log: {request.text} for model: {ai_model}")
     try:
-        model_id = "gemma4:e2b" # Or whichever text model you are currently using in local_client
+        client, model_id = get_ai_client(ai_model)
         
         system_prompt = """
 You are an Indian Nutritionist. Extract the food items from the provided text.
@@ -335,7 +353,7 @@ Return ONLY valid JSON. No explanation. No markdown.
 - Estimate realistic 'weight_g' for the ingredients inferred from the user's description (e.g. "2 rotis and dal" -> roti: ~80g, dal: ~150g).
         """
         
-        chat_completion = local_client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.text}
