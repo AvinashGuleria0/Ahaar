@@ -45,9 +45,9 @@ class _LogMealScreenState extends ConsumerState<LogMealScreen> {
   Future<void> _captureAndAnalyze() async {
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 85,
+      maxWidth: 512, // Reduced from 1024 to save backend VRAM
+      maxHeight: 512, // Reduced from 1024 to save backend VRAM
+      imageQuality: 70, // Reduced from 85 for faster network upload
     ); 
     
     if (pickedFile == null) return;
@@ -68,6 +68,10 @@ class _LogMealScreenState extends ConsumerState<LogMealScreen> {
       var request = http.MultipartRequest('POST', Uri.parse(endpoint));
       request.files.add(await http.MultipartFile.fromPath('file', _image!.path));                                                                           
       request.fields['ai_model'] = _selectedAiModel;
+      
+      // TODO: Fetch this dynamically from Isar LocalUserProfile once hooked up to Supabase Auth
+      // request.fields['university_id'] = "c7d2b4f6-8c9a-41e3-b3a1-7d90a5b29c3f"; 
+      
       var response = await request.send().timeout(const Duration(seconds: 180));                                                                                  
       var responseData = await response.stream.bytesToString().timeout(const Duration(seconds: 180));                                                             
       var jsonResponse = json.decode(responseData);

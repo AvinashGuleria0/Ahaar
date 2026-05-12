@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_schemas.dart';
@@ -174,17 +175,11 @@ class _MealConfirmationSheetState extends ConsumerState<MealConfirmationSheet> {
                           children: dish.ingredients.asMap().entries.map((entry) {
                             final ingIndex = entry.key;
                             final ing = entry.value;
-                            return CheckboxListTile(
-                              value: !ing.isExcluded, // If true, it's included
-                              activeColor: Colors.deepOrange,
-                              title: Text(ing.name),
-                              subtitle: Text(
-                                "${ing.weightG.toStringAsFixed(1)}g · ${ing.calories.toStringAsFixed(0)} kcal",
-                                style: TextStyle(color: Colors.grey.shade600),
-                              ),
-                              onChanged: (bool? val) {
-                                draftNotifier.toggleIngredient(dishIndex, ingIndex);
-                              },
+                            return _IngredientRow(
+                              ingredient: ing,
+                              dishIndex: dishIndex,
+                              ingredientIndex: ingIndex,
+                              draftNotifier: draftNotifier,
                             );
                           }).toList(),
                         ),
@@ -227,6 +222,101 @@ class _MacroBadge extends StatelessWidget {
         Text(value.toStringAsFixed(0), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color ?? Colors.deepOrange)),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
+    );
+  }
+}
+
+class _IngredientRow extends StatefulWidget {
+  final DraftIngredient ingredient;
+  final int dishIndex;
+  final int ingredientIndex;
+  final MealDraftNotifier draftNotifier;
+
+  const _IngredientRow({
+    required this.ingredient,
+    required this.dishIndex,
+    required this.ingredientIndex,
+    required this.draftNotifier,
+  });
+
+  @override
+  State<_IngredientRow> createState() => _IngredientRowState();
+}
+
+class _IngredientRowState extends State<_IngredientRow> {
+  late TextEditingController _controller;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default the field to the AI's predicted weight
+    _controller = TextEditingController(text: widget.ingredient.weightG.toStringAsFixed(0));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    
+    // Debounce the recalculation by 400ms to prevent extreme stutter while typing
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      final double? parsed = double.tryParse(value);
+      if (parsed != null) {
+        widget.draftNotifier.updateIngredientWeight(
+          widget.dishIndex,
+          widget.ingredientIndex,
+          parsed,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CheckboxListTile(
+      value: !widget.ingredient.isExcluded,
+      activeColor: Colors.deepOrange,
+      title: Text(widget.ingredient.name),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 80,
+              height: 40,
+              child: TextFormField(
+                controller: _controller,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                  suffixText: 'g',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+                onChanged: _onChanged,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              "·  ${widget.ingredient.calories.toStringAsFixed(0)} kcal",
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+      onChanged: (bool? val) {
+        widget.draftNotifier.toggleIngredient(widget.dishIndex, widget.ingredientIndex);
+      },
     );
   }
 }

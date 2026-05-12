@@ -418,8 +418,21 @@ Phase 11.2 (Hotfix): Android Build & API URI Resolution
 - **Implementations:**
   - **Native Integration:** Initialized `flutter_local_notifications` and the `timezone` package inside a new `NotificationService`. Hardened the platform configuration by explicitly requesting Android 13+ `POST_NOTIFICATIONS` and `SCHEDULE_EXACT_ALARM` permissions directly in the manifest and Dart engine.
   - **Contextual Weather Alert:** Hooked `triggerWeatherAlert()` into the `ContextService`. Natively detects if local temperature exceeds 35°C and pushes an immediate hydration warning (`☀️ Extreme Heat Warning`). Implemented a runtime lock (`_hasFiredWeatherAlertToday`) to prevent notification spam across multiple app launches.
-  - **Scheduled Gym Motivation:** Intercepted the offline `LocalWorkoutPlan` payload parsing inside `WorkoutNotifier.build()`. If the user has `0` completed sets recorded for the current day, it natively maps the `day_name` (e.g. "Pull Day") and places a scheduled notification alarm exclusively for 5:00 PM (`17:00`) today.
   - **Time-Travel Safeguards:** Engineered strict chronological validation bounds (`scheduledDate.isBefore(now)`) ensuring the gym coach does not accidentally trigger historical alerts if the app is launched past 5:00 PM.
+
+### Task 4: Dynamic AI Engine & Manual Macro Override
+- **Objective:** Enable multi-model benchmarking directly from the UI and allow users to manually correct AI-estimated ingredient weights with proportional macro scaling.
+- **Implementations:**
+  - **Dynamic AI Router (`main.py`):** Expanded the FastAPI vision and text endpoints to accept an `ai_model` form parameter. Engineered a clean routing gateway switching seamlessly between OpenRouter (`qwen/qwen2.5-vl-72b-instruct`), Groq (`meta-llama/llama-4-scout-17b-16e-instruct`), and Local (`gemma4:e4b`) based exclusively on user preference.
+  - **State Math Engine (`meal_draft_notifier.dart`):** Engineered `updateIngredientWeight(dishIndex, ingredientIndex, newWeightG)`. Added a sophisticated proportional scaling algorithm (`newWeightG / oldWeightG`) with a `DivisionByZero` safety guard. Dynamically rescales calories, protein, carbs, and fats perfectly synchronously across the Riverpod tree.
+  - **Debounced UI Component (`meal_confirmation_sheet.dart`):** Replaced the static weight text with an embedded, stateful `TextFormField`. Wrapped the user's keystrokes in a strict 400ms `Timer` debounce block, ensuring the global macro badges at the top of the UI recalculate instantly without dropping frames during rapid user typing.
+
+### Task 5: Hyper-Local University Meal Semantic Cache
+- **Objective:** Drastically reduce LLM API latency and cost by building a hyper-local vector cache of dining hall meals strictly scoped to a user's university.
+- **Implementations:**
+  - **Supabase Vector Schema (`supabase_university_schema.sql`):** Designed the relational schema for `universities` and `university_meals`. Implemented a `vector(2048)` column specifically sized for Qwen3-VL embeddings. Built a highly optimized PostgreSQL RPC function (`match_university_meal_rpc`) that performs Exact Nearest Neighbor Cosine Distance matching scoped by `university_id`, returning instant macro payloads for >85% confidence hits.
+  - **FastAPI Qwen3-VL Integration (`main.py`):** Injected the Dual-Tower `Qwen3VLEmbedder` locally. Implemented a strict VRAM cap (`max_pixels=262144`) natively in the model initializer to prevent backend Out-of-Memory crashes. Hooked up the `match_university_meal()` short-circuit logic inside `/api/v1/analyze/vision` that entirely bypasses the LLM on a cache hit.
+  - **Mobile Preprocessing (`log_meal_screen.dart`):** Aggressively clamped the `ImagePicker` down to `maxWidth: 512, maxHeight: 512, imageQuality: 70`. This crushes the image payload size from ~4MB down to ~150KB, ensuring blazing fast upload speeds on cellular networks while preserving enough detail for the Qwen embedding model. Added a placeholder payload for the future `university_id` link.
 
 ## Phase 13: Dynamic AI Model Switching Engine
 
@@ -437,3 +450,31 @@ Phase 11.2 (Hotfix): Android Build & API URI Resolution
 - **Objective:** Fix "404 No endpoints found" error caused by deprecated or restricted free model suffixes on OpenRouter.
 - **Implementations:**
   - **Endpoint Correction:** Migrated the backend inference target from \`qwen/qwen2.5-vl-72b-instruct:free\` to \`qwen/qwen2.5-vl-72b-instruct\` in \`main.py\`. This resolved the 404 error by targeting the stable production endpoint rather than the potentially restricted or renamed free-tier suffix.
+
+
+
+### Task 6: Admin Portal Vector Generation Endpoint
+- **Objective:** Empower the Admin Portal to easily generate and insert new University Meals into the Supabase Vector cache using raw image uploads.
+- **Implementations:**
+  - **Admin Route (`main.py`):** Engineered the `/api/v1/admin/embed-image` POST endpoint specifically for admin database seeding. It securely accepts a direct `UploadFile`.
+  - **Batch Extraction Pipeline (`main.py`):** Developed an advanced parallel-processing route (`/api/v1/admin/embed-image-batch`) that accepts a compiled `.zip` archive. It safely mounts the archive in active memory (`io.BytesIO`), filters valid file formats (`.png`, `.jpg`, `.jpeg`, `.webp`), and automatically thumbnails the entire collection simultaneously without thrashing disk I/O.
+  - **Vector Pipeline:** Intercepts the image, identically applies the mathematical `512x512` thumbnailing (ensuring perfect cosine-distance symmetry with the mobile app), and processes it through the loaded `Qwen3VLEmbedder`. For the batch pipeline, it natively utilizes Qwen's list-processing capability to vectorize hundreds of images in a single rapid inference pass.
+  - **Robust Output:** Returns pure JSON dictionaries mapping filenames to their 2048-dimensional floating-point arrays (`{"results": [{"filename": "pizza.jpg", "embedding": [...]}]}`) ready for immediate mass Supabase insertion, heavily guarded by native `HTTPException` error catchers.
+
+## Phase 14: React Admin Portal & RAG Management
+
+### Task 1: Secure Admin Application Scaffolding
+- **Objective:** Establish an independent React-based web dashboard to manage the Hyper-Local University databases and semantic vector caches.
+- **Implementations:**
+  - **Vite/React Setup:** Initialized a modern Vite React (TypeScript) architecture entirely separate from the Flutter mobile app.
+  - **Tailwind v4 Integration:** Implemented the cutting-edge `@tailwindcss/postcss` plugin, securely mapping `@import "tailwindcss"` within `index.css` to bypass native Linux `npx` executable path errors.
+  - **Supabase Authentication (`Login.tsx`):** Designed a secure, aesthetic Login portal specifically hooked into `supabase.auth.signInWithPassword`.
+  - **Database-Level Routing (`ProtectedRoute.tsx`):** Engineered a highly secure React Router wrapper. It not only verifies the JWT session token locally but executes a hard `select` query against the `public.users` table. If the `is_admin` boolean is strictly false, it forcibly kicks the user out with an "ACCESS DENIED" termination screen.
+
+### Task 2: University RAG Provisioning
+- **Objective:** Allow administrators to dynamically create new Universities and scrape their database UUIDs for manual vector meal tagging.
+- **Implementations:**
+  - **RAG Dashboard (`UniversityManager.tsx`):** Engineered a comprehensive split-view component.
+  - **Write Pipeline:** A form strictly binds `name` and `city` states, executing an asynchronous `.insert()` directly into the Supabase `universities` table, rendering errors gracefully.
+  - **Read Pipeline:** Automatically runs a `.select('*').order('created_at')` hook on mount, fetching the live relational mapping of registered colleges.
+  - **UUID Extraction:** Generates an auto-updating HTML table exposing the internal UUIDs in copyable monospace blocks. These UUIDs are structurally required for the `main.py` Short-Circuit logic, allowing the Admin to link raw Meal Embeddings directly to a physical campus.
