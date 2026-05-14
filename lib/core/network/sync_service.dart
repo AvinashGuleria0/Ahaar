@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:isar/isar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,18 +44,30 @@ class SyncService {
 
       print('SyncService: Found ${unsyncedMeals.length} unsynced meals. Starting synchronization...');
 
+      // Fetch User Profile to get real user_id
+      final profile = await isar.localUserProfiles.get(1);
+      final userId = profile?.userId;
+      
+      if (userId == null) {
+        print('SyncService: Missing User ID. Cannot sync meals.');
+        return;
+      }
+
       // 2. Loop through and execute transactional API updates
       for (final meal in unsyncedMeals) {
         try {
           // Construct precise JSON matching Python MealLogRequest Pydantic Schema
           final payload = {
-            "user_id": "123e4567-e89b-12d3-a456-426614174000", // Current Mock ID representing the Authorized User
-            "log_date": meal.loggedAt.toIso8601String(),
+            "user_id": userId,
+            "log_date": meal.loggedAt.toIso8601String().split('T')[0], // Map exactly to date YYYY-MM-DD
             "meal_type": meal.mealType,
-            "meal_cals": meal.calories,
-            "meal_protein": meal.protein,
-            "meal_carbs": meal.carbs,
-            "meal_fats": meal.fats,
+            "meal_calories": meal.calories,
+            "meal_protein_g": meal.protein,
+            "meal_carbs_g": meal.carbs,
+            "meal_fats_g": meal.fats,
+            "meal_fiber_g": 0.0,
+            "meal_sugar_g": 0.0,
+            "meal_sodium_mg": 0.0,
           };
 
           // 3. Dispatch POST Request
@@ -96,6 +109,85 @@ class SyncService {
     } catch (e) {
       // Graceful absolute abort for network constraints (SocketException, Offline bounds)
       print('SyncService Network Drop: Aborting sync loop safely. Payload: $e');
+    }
+  }
+
+  /// Synchronizes all offline workouts asynchronously to the Cloud database.
+  Future<void> syncOfflineWorkoutsToCloud() async {
+    try {
+      // 1. Identify Unsynced Workouts
+      final unsyncedLogs = await isar.localExerciseLogs.filter().supabaseIdIsNull().findAll();
+
+      if (unsyncedLogs.isEmpty) {
+        return;
+      }
+
+      print('SyncService: Found ${unsyncedLogs.length} unsynced workouts. Starting synchronization...');
+
+      // Fetch User Profile to get real user_id
+      final profile = await isar.localUserProfiles.get(1);
+      final userId = profile?.userId;
+      
+      if (userId == null) {
+        print('SyncService: Missing User ID. Cannot sync workouts.');
+        return;
+      }
+
+      // 2. Format Payload
+      final List<Map<String, dynamic>> logsPayload = [];
+      for (final log in unsyncedLogs) {
+        final decodedSets = log.completedSetsJson.map((e) => jsonDecode(e)).toList();
+        
+        logsPayload.add({
+          "user_id": userId,
+          "date": log.date.toIso8601String().split('T')[0],
+          "exercise_name": log.exerciseName ?? "Unknown Exercise",
+          "sets_completed": decodedSets.length,
+          "target_sets": log.targetSets > 0 ? log.targetSets : 1, // Fallback if 0
+          "completed_sets_json": decodedSets,
+        });
+      }
+
+      final payload = {"logs": logsPayload};
+
+      // 3. Dispatch POST Request
+      final response = await dio.post(
+        '$baseUrl/api/v1/workouts/log',
+        data: payload,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data['data'] as List<dynamic>?;
+        
+        await isar.writeTxn(() async {
+          for (final log in unsyncedLogs) {
+             log.isSyncedWithCloud = true;
+             
+             if (responseData != null) {
+               // Find the corresponding inserted log to extract the uuid
+               final matched = responseData.firstWhere(
+                 (e) => e['exercise_name'] == log.exerciseName && e['date'] == log.date.toIso8601String().split('T')[0],
+                 orElse: () => null,
+               );
+               if (matched != null) {
+                 log.supabaseId = matched['id'] as String?;
+               }
+             }
+             
+             // If the backend didn't return an ID for some reason but it succeeded, 
+             // we still save it to prevent infinite sync loops. If we need strict 
+             // UUID checks, we'd assign a fake one or throw, but here we trust the 200 OK.
+             if (log.supabaseId == null) {
+                log.supabaseId = 'synced_offline_${DateTime.now().millisecondsSinceEpoch}';
+             }
+
+             await isar.localExerciseLogs.put(log);
+          }
+        });
+        print('SyncService: Successfully synced ${unsyncedLogs.length} workouts.');
+      }
+    } catch (e) {
+      print('SyncService Workout Error: Failed to sync workouts: $e');
     }
   }
 }

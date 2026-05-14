@@ -61,6 +61,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 Open a new terminal at project root and pass your USB IP to the app:
 
 ```bash
+
 flutter clean
 flutter pub get
 flutter run --dart-define=API_URL="http://<YOUR_USB_IP>:8000"

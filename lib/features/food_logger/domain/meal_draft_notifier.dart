@@ -195,6 +195,35 @@ class MealDraftNotifier extends Notifier<List<DraftDish>> {
     state = updatedState;
   }
 
+  /// Feature Addition: Update an ingredient's weight manually and recalculate macros proportionally.
+  void updateIngredientWeight(int dishIndex, int ingredientIndex, double newWeightG) {
+    if (newWeightG < 0) return;
+    
+    final dish = state[dishIndex];
+    final ingredient = dish.ingredients[ingredientIndex];
+    
+    // Avoid DivisionByZero if AI returned 0g baseline
+    final double oldWeight = ingredient.weightG > 0 ? ingredient.weightG : 1.0;
+    final double ratio = newWeightG / oldWeight;
+    
+    final updatedIngredient = ingredient.copyWith(
+      weightG: newWeightG,
+      calories: ingredient.calories * ratio,
+      protein: ingredient.protein * ratio,
+      carbs: ingredient.carbs * ratio,
+      fats: ingredient.fats * ratio,
+    );
+    
+    final updatedIngredients = List<DraftIngredient>.from(dish.ingredients);
+    updatedIngredients[ingredientIndex] = updatedIngredient;
+    
+    final updatedDish = dish.copyWith(ingredients: updatedIngredients);
+    final updatedState = List<DraftDish>.from(state);
+    updatedState[dishIndex] = updatedDish;
+    
+    state = updatedState;
+  }
+
   /// Returns a strictly typed Dart 3 Record computing totals of non-excluded items
   ({double calories, double protein, double carbs, double fats}) calculateTotalMacros() {
     double totalCals = 0.0;

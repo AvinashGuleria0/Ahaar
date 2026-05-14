@@ -37,29 +37,54 @@ const LocalDailyLogSchema = CollectionSchema(
       name: r'consumedProtein',
       type: IsarType.double,
     ),
-    r'isSyncedWithCloud': PropertySchema(
+    r'consumedWaterLiters': PropertySchema(
       id: 4,
+      name: r'consumedWaterLiters',
+      type: IsarType.double,
+    ),
+    r'isHeatBoostActive': PropertySchema(
+      id: 5,
+      name: r'isHeatBoostActive',
+      type: IsarType.bool,
+    ),
+    r'isSyncedWithCloud': PropertySchema(
+      id: 6,
       name: r'isSyncedWithCloud',
       type: IsarType.bool,
     ),
     r'logDate': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'logDate',
       type: IsarType.dateTime,
     ),
     r'supabaseId': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'targetCalories': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'targetCalories',
       type: IsarType.double,
     ),
+    r'targetCarbs': PropertySchema(
+      id: 10,
+      name: r'targetCarbs',
+      type: IsarType.double,
+    ),
+    r'targetFats': PropertySchema(
+      id: 11,
+      name: r'targetFats',
+      type: IsarType.double,
+    ),
     r'targetProtein': PropertySchema(
-      id: 8,
+      id: 12,
       name: r'targetProtein',
+      type: IsarType.double,
+    ),
+    r'targetWaterLiters': PropertySchema(
+      id: 13,
+      name: r'targetWaterLiters',
       type: IsarType.double,
     )
   },
@@ -137,11 +162,16 @@ void _localDailyLogSerialize(
   writer.writeDouble(offsets[1], object.consumedCarbs);
   writer.writeDouble(offsets[2], object.consumedFats);
   writer.writeDouble(offsets[3], object.consumedProtein);
-  writer.writeBool(offsets[4], object.isSyncedWithCloud);
-  writer.writeDateTime(offsets[5], object.logDate);
-  writer.writeString(offsets[6], object.supabaseId);
-  writer.writeDouble(offsets[7], object.targetCalories);
-  writer.writeDouble(offsets[8], object.targetProtein);
+  writer.writeDouble(offsets[4], object.consumedWaterLiters);
+  writer.writeBool(offsets[5], object.isHeatBoostActive);
+  writer.writeBool(offsets[6], object.isSyncedWithCloud);
+  writer.writeDateTime(offsets[7], object.logDate);
+  writer.writeString(offsets[8], object.supabaseId);
+  writer.writeDouble(offsets[9], object.targetCalories);
+  writer.writeDouble(offsets[10], object.targetCarbs);
+  writer.writeDouble(offsets[11], object.targetFats);
+  writer.writeDouble(offsets[12], object.targetProtein);
+  writer.writeDouble(offsets[13], object.targetWaterLiters);
 }
 
 LocalDailyLog _localDailyLogDeserialize(
@@ -155,12 +185,17 @@ LocalDailyLog _localDailyLogDeserialize(
   object.consumedCarbs = reader.readDouble(offsets[1]);
   object.consumedFats = reader.readDouble(offsets[2]);
   object.consumedProtein = reader.readDouble(offsets[3]);
+  object.consumedWaterLiters = reader.readDouble(offsets[4]);
   object.id = id;
-  object.isSyncedWithCloud = reader.readBool(offsets[4]);
-  object.logDate = reader.readDateTime(offsets[5]);
-  object.supabaseId = reader.readStringOrNull(offsets[6]);
-  object.targetCalories = reader.readDouble(offsets[7]);
-  object.targetProtein = reader.readDouble(offsets[8]);
+  object.isHeatBoostActive = reader.readBool(offsets[5]);
+  object.isSyncedWithCloud = reader.readBool(offsets[6]);
+  object.logDate = reader.readDateTime(offsets[7]);
+  object.supabaseId = reader.readStringOrNull(offsets[8]);
+  object.targetCalories = reader.readDouble(offsets[9]);
+  object.targetCarbs = reader.readDouble(offsets[10]);
+  object.targetFats = reader.readDouble(offsets[11]);
+  object.targetProtein = reader.readDouble(offsets[12]);
+  object.targetWaterLiters = reader.readDouble(offsets[13]);
   return object;
 }
 
@@ -180,14 +215,24 @@ P _localDailyLogDeserializeProp<P>(
     case 3:
       return (reader.readDouble(offset)) as P;
     case 4:
-      return (reader.readBool(offset)) as P;
-    case 5:
-      return (reader.readDateTime(offset)) as P;
-    case 6:
-      return (reader.readStringOrNull(offset)) as P;
-    case 7:
       return (reader.readDouble(offset)) as P;
+    case 5:
+      return (reader.readBool(offset)) as P;
+    case 6:
+      return (reader.readBool(offset)) as P;
+    case 7:
+      return (reader.readDateTime(offset)) as P;
     case 8:
+      return (reader.readStringOrNull(offset)) as P;
+    case 9:
+      return (reader.readDouble(offset)) as P;
+    case 10:
+      return (reader.readDouble(offset)) as P;
+    case 11:
+      return (reader.readDouble(offset)) as P;
+    case 12:
+      return (reader.readDouble(offset)) as P;
+    case 13:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -721,6 +766,72 @@ extension LocalDailyLogQueryFilter
     });
   }
 
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      consumedWaterLitersEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'consumedWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      consumedWaterLitersGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'consumedWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      consumedWaterLitersLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'consumedWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      consumedWaterLitersBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'consumedWaterLiters',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition> idEqualTo(
       Id value) {
     return QueryBuilder.apply(this, (query) {
@@ -771,6 +882,16 @@ extension LocalDailyLogQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      isHeatBoostActiveEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isHeatBoostActive',
+        value: value,
       ));
     });
   }
@@ -1062,6 +1183,138 @@ extension LocalDailyLogQueryFilter
   }
 
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetCarbsEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'targetCarbs',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetCarbsGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'targetCarbs',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetCarbsLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'targetCarbs',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetCarbsBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'targetCarbs',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetFatsEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'targetFats',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetFatsGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'targetFats',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetFatsLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'targetFats',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetFatsBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'targetFats',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
       targetProteinEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -1118,6 +1371,72 @@ extension LocalDailyLogQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'targetProtein',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetWaterLitersEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'targetWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetWaterLitersGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'targetWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetWaterLitersLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'targetWaterLiters',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterFilterCondition>
+      targetWaterLitersBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'targetWaterLiters',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1254,6 +1573,34 @@ extension LocalDailyLogQuerySortBy
   }
 
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByConsumedWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consumedWaterLiters', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByConsumedWaterLitersDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consumedWaterLiters', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByIsHeatBoostActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isHeatBoostActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByIsHeatBoostActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isHeatBoostActive', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
       sortByIsSyncedWithCloud() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isSyncedWithCloud', Sort.asc);
@@ -1306,6 +1653,32 @@ extension LocalDailyLogQuerySortBy
     });
   }
 
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> sortByTargetCarbs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetCarbs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByTargetCarbsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetCarbs', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> sortByTargetFats() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetFats', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByTargetFatsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetFats', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
       sortByTargetProtein() {
     return QueryBuilder.apply(this, (query) {
@@ -1317,6 +1690,20 @@ extension LocalDailyLogQuerySortBy
       sortByTargetProteinDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'targetProtein', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByTargetWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetWaterLiters', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      sortByTargetWaterLitersDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetWaterLiters', Sort.desc);
     });
   }
 }
@@ -1379,6 +1766,20 @@ extension LocalDailyLogQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByConsumedWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consumedWaterLiters', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByConsumedWaterLitersDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consumedWaterLiters', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -1388,6 +1789,20 @@ extension LocalDailyLogQuerySortThenBy
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByIsHeatBoostActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isHeatBoostActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByIsHeatBoostActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isHeatBoostActive', Sort.desc);
     });
   }
 
@@ -1444,6 +1859,32 @@ extension LocalDailyLogQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> thenByTargetCarbs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetCarbs', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByTargetCarbsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetCarbs', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy> thenByTargetFats() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetFats', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByTargetFatsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetFats', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
       thenByTargetProtein() {
     return QueryBuilder.apply(this, (query) {
@@ -1455,6 +1896,20 @@ extension LocalDailyLogQuerySortThenBy
       thenByTargetProteinDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'targetProtein', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByTargetWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetWaterLiters', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QAfterSortBy>
+      thenByTargetWaterLitersDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetWaterLiters', Sort.desc);
     });
   }
 }
@@ -1490,6 +1945,20 @@ extension LocalDailyLogQueryWhereDistinct
   }
 
   QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
+      distinctByConsumedWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'consumedWaterLiters');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
+      distinctByIsHeatBoostActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isHeatBoostActive');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
       distinctByIsSyncedWithCloud() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isSyncedWithCloud');
@@ -1517,9 +1986,29 @@ extension LocalDailyLogQueryWhereDistinct
   }
 
   QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
+      distinctByTargetCarbs() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'targetCarbs');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct> distinctByTargetFats() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'targetFats');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
       distinctByTargetProtein() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'targetProtein');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, LocalDailyLog, QDistinct>
+      distinctByTargetWaterLiters() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'targetWaterLiters');
     });
   }
 }
@@ -1559,6 +2048,20 @@ extension LocalDailyLogQueryProperty
     });
   }
 
+  QueryBuilder<LocalDailyLog, double, QQueryOperations>
+      consumedWaterLitersProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'consumedWaterLiters');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, bool, QQueryOperations>
+      isHeatBoostActiveProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isHeatBoostActive');
+    });
+  }
+
   QueryBuilder<LocalDailyLog, bool, QQueryOperations>
       isSyncedWithCloudProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -1585,10 +2088,29 @@ extension LocalDailyLogQueryProperty
     });
   }
 
+  QueryBuilder<LocalDailyLog, double, QQueryOperations> targetCarbsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'targetCarbs');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, double, QQueryOperations> targetFatsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'targetFats');
+    });
+  }
+
   QueryBuilder<LocalDailyLog, double, QQueryOperations>
       targetProteinProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'targetProtein');
+    });
+  }
+
+  QueryBuilder<LocalDailyLog, double, QQueryOperations>
+      targetWaterLitersProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'targetWaterLiters');
     });
   }
 }
@@ -2858,58 +3380,73 @@ const LocalUserProfileSchema = CollectionSchema(
   name: r'LocalUserProfile',
   id: -161605424268665818,
   properties: {
-    r'dietPreference': PropertySchema(
+    r'activityLevel': PropertySchema(
       id: 0,
+      name: r'activityLevel',
+      type: IsarType.string,
+    ),
+    r'authId': PropertySchema(
+      id: 1,
+      name: r'authId',
+      type: IsarType.string,
+    ),
+    r'dietPreference': PropertySchema(
+      id: 2,
       name: r'dietPreference',
       type: IsarType.string,
     ),
     r'goal': PropertySchema(
-      id: 1,
+      id: 3,
       name: r'goal',
       type: IsarType.string,
     ),
     r'heightCm': PropertySchema(
-      id: 2,
+      id: 4,
       name: r'heightCm',
       type: IsarType.double,
     ),
     r'isOnboardingComplete': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'isOnboardingComplete',
       type: IsarType.bool,
     ),
     r'name': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'name',
       type: IsarType.string,
     ),
     r'targetCalories': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'targetCalories',
       type: IsarType.long,
     ),
     r'targetCarbsG': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'targetCarbsG',
       type: IsarType.long,
     ),
     r'targetFatsG': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'targetFatsG',
       type: IsarType.long,
     ),
     r'targetProteinG': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'targetProteinG',
       type: IsarType.long,
     ),
     r'targetWaterMl': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'targetWaterMl',
       type: IsarType.long,
     ),
+    r'userId': PropertySchema(
+      id: 12,
+      name: r'userId',
+      type: IsarType.string,
+    ),
     r'weightKg': PropertySchema(
-      id: 10,
+      id: 13,
       name: r'weightKg',
       type: IsarType.double,
     )
@@ -2935,6 +3472,18 @@ int _localUserProfileEstimateSize(
 ) {
   var bytesCount = offsets.last;
   {
+    final value = object.activityLevel;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.authId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.dietPreference;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -2952,6 +3501,12 @@ int _localUserProfileEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.userId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -2961,17 +3516,20 @@ void _localUserProfileSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.dietPreference);
-  writer.writeString(offsets[1], object.goal);
-  writer.writeDouble(offsets[2], object.heightCm);
-  writer.writeBool(offsets[3], object.isOnboardingComplete);
-  writer.writeString(offsets[4], object.name);
-  writer.writeLong(offsets[5], object.targetCalories);
-  writer.writeLong(offsets[6], object.targetCarbsG);
-  writer.writeLong(offsets[7], object.targetFatsG);
-  writer.writeLong(offsets[8], object.targetProteinG);
-  writer.writeLong(offsets[9], object.targetWaterMl);
-  writer.writeDouble(offsets[10], object.weightKg);
+  writer.writeString(offsets[0], object.activityLevel);
+  writer.writeString(offsets[1], object.authId);
+  writer.writeString(offsets[2], object.dietPreference);
+  writer.writeString(offsets[3], object.goal);
+  writer.writeDouble(offsets[4], object.heightCm);
+  writer.writeBool(offsets[5], object.isOnboardingComplete);
+  writer.writeString(offsets[6], object.name);
+  writer.writeLong(offsets[7], object.targetCalories);
+  writer.writeLong(offsets[8], object.targetCarbsG);
+  writer.writeLong(offsets[9], object.targetFatsG);
+  writer.writeLong(offsets[10], object.targetProteinG);
+  writer.writeLong(offsets[11], object.targetWaterMl);
+  writer.writeString(offsets[12], object.userId);
+  writer.writeDouble(offsets[13], object.weightKg);
 }
 
 LocalUserProfile _localUserProfileDeserialize(
@@ -2981,18 +3539,21 @@ LocalUserProfile _localUserProfileDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = LocalUserProfile();
-  object.dietPreference = reader.readStringOrNull(offsets[0]);
-  object.goal = reader.readStringOrNull(offsets[1]);
-  object.heightCm = reader.readDoubleOrNull(offsets[2]);
+  object.activityLevel = reader.readStringOrNull(offsets[0]);
+  object.authId = reader.readStringOrNull(offsets[1]);
+  object.dietPreference = reader.readStringOrNull(offsets[2]);
+  object.goal = reader.readStringOrNull(offsets[3]);
+  object.heightCm = reader.readDoubleOrNull(offsets[4]);
   object.id = id;
-  object.isOnboardingComplete = reader.readBool(offsets[3]);
-  object.name = reader.readStringOrNull(offsets[4]);
-  object.targetCalories = reader.readLongOrNull(offsets[5]);
-  object.targetCarbsG = reader.readLongOrNull(offsets[6]);
-  object.targetFatsG = reader.readLongOrNull(offsets[7]);
-  object.targetProteinG = reader.readLongOrNull(offsets[8]);
-  object.targetWaterMl = reader.readLongOrNull(offsets[9]);
-  object.weightKg = reader.readDoubleOrNull(offsets[10]);
+  object.isOnboardingComplete = reader.readBool(offsets[5]);
+  object.name = reader.readStringOrNull(offsets[6]);
+  object.targetCalories = reader.readLongOrNull(offsets[7]);
+  object.targetCarbsG = reader.readLongOrNull(offsets[8]);
+  object.targetFatsG = reader.readLongOrNull(offsets[9]);
+  object.targetProteinG = reader.readLongOrNull(offsets[10]);
+  object.targetWaterMl = reader.readLongOrNull(offsets[11]);
+  object.userId = reader.readStringOrNull(offsets[12]);
+  object.weightKg = reader.readDoubleOrNull(offsets[13]);
   return object;
 }
 
@@ -3008,15 +3569,15 @@ P _localUserProfileDeserializeProp<P>(
     case 1:
       return (reader.readStringOrNull(offset)) as P;
     case 2:
-      return (reader.readDoubleOrNull(offset)) as P;
-    case 3:
-      return (reader.readBool(offset)) as P;
-    case 4:
       return (reader.readStringOrNull(offset)) as P;
+    case 3:
+      return (reader.readStringOrNull(offset)) as P;
+    case 4:
+      return (reader.readDoubleOrNull(offset)) as P;
     case 5:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 6:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
       return (reader.readLongOrNull(offset)) as P;
     case 8:
@@ -3024,6 +3585,12 @@ P _localUserProfileDeserializeProp<P>(
     case 9:
       return (reader.readLongOrNull(offset)) as P;
     case 10:
+      return (reader.readLongOrNull(offset)) as P;
+    case 11:
+      return (reader.readLongOrNull(offset)) as P;
+    case 12:
+      return (reader.readStringOrNull(offset)) as P;
+    case 13:
       return (reader.readDoubleOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -3124,6 +3691,314 @@ extension LocalUserProfileQueryWhere
 
 extension LocalUserProfileQueryFilter
     on QueryBuilder<LocalUserProfile, LocalUserProfile, QFilterCondition> {
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'activityLevel',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'activityLevel',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'activityLevel',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'activityLevel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'activityLevel',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'activityLevel',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      activityLevelIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'activityLevel',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'authId',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'authId',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'authId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'authId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'authId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'authId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      authIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'authId',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
       dietPreferenceIsNull() {
     return QueryBuilder.apply(this, (query) {
@@ -4107,6 +4982,160 @@ extension LocalUserProfileQueryFilter
   }
 
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'userId',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'userId',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'userId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'userId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'userId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'userId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
+      userIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'userId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterFilterCondition>
       weightKgIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -4199,6 +5228,34 @@ extension LocalUserProfileQueryLinks
 
 extension LocalUserProfileQuerySortBy
     on QueryBuilder<LocalUserProfile, LocalUserProfile, QSortBy> {
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByActivityLevel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'activityLevel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByActivityLevelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'activityLevel', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByAuthId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'authId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByAuthIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'authId', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
       sortByDietPreference() {
     return QueryBuilder.apply(this, (query) {
@@ -4338,6 +5395,20 @@ extension LocalUserProfileQuerySortBy
   }
 
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      sortByUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
       sortByWeightKg() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'weightKg', Sort.asc);
@@ -4354,6 +5425,34 @@ extension LocalUserProfileQuerySortBy
 
 extension LocalUserProfileQuerySortThenBy
     on QueryBuilder<LocalUserProfile, LocalUserProfile, QSortThenBy> {
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByActivityLevel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'activityLevel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByActivityLevelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'activityLevel', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByAuthId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'authId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByAuthIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'authId', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
       thenByDietPreference() {
     return QueryBuilder.apply(this, (query) {
@@ -4506,6 +5605,20 @@ extension LocalUserProfileQuerySortThenBy
   }
 
   QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
+      thenByUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QAfterSortBy>
       thenByWeightKg() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'weightKg', Sort.asc);
@@ -4522,6 +5635,21 @@ extension LocalUserProfileQuerySortThenBy
 
 extension LocalUserProfileQueryWhereDistinct
     on QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct> {
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct>
+      distinctByActivityLevel({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'activityLevel',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct> distinctByAuthId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'authId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct>
       distinctByDietPreference({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -4593,6 +5721,13 @@ extension LocalUserProfileQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct> distinctByUserId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'userId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalUserProfile, LocalUserProfile, QDistinct>
       distinctByWeightKg() {
     return QueryBuilder.apply(this, (query) {
@@ -4606,6 +5741,19 @@ extension LocalUserProfileQueryProperty
   QueryBuilder<LocalUserProfile, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, String?, QQueryOperations>
+      activityLevelProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'activityLevel');
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, String?, QQueryOperations> authIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'authId');
     });
   }
 
@@ -4672,6 +5820,12 @@ extension LocalUserProfileQueryProperty
       targetWaterMlProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'targetWaterMl');
+    });
+  }
+
+  QueryBuilder<LocalUserProfile, String?, QQueryOperations> userIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'userId');
     });
   }
 
@@ -5436,6 +6590,11 @@ const LocalExerciseLogSchema = CollectionSchema(
       id: 4,
       name: r'supabaseId',
       type: IsarType.string,
+    ),
+    r'targetSets': PropertySchema(
+      id: 5,
+      name: r'targetSets',
+      type: IsarType.long,
     )
   },
   estimateSize: _localExerciseLogEstimateSize,
@@ -5525,6 +6684,7 @@ void _localExerciseLogSerialize(
   writer.writeString(offsets[2], object.exerciseName);
   writer.writeBool(offsets[3], object.isSyncedWithCloud);
   writer.writeString(offsets[4], object.supabaseId);
+  writer.writeLong(offsets[5], object.targetSets);
 }
 
 LocalExerciseLog _localExerciseLogDeserialize(
@@ -5540,6 +6700,7 @@ LocalExerciseLog _localExerciseLogDeserialize(
   object.id = id;
   object.isSyncedWithCloud = reader.readBool(offsets[3]);
   object.supabaseId = reader.readStringOrNull(offsets[4]);
+  object.targetSets = reader.readLong(offsets[5]);
   return object;
 }
 
@@ -5560,6 +6721,8 @@ P _localExerciseLogDeserializeProp<P>(
       return (reader.readBool(offset)) as P;
     case 4:
       return (reader.readStringOrNull(offset)) as P;
+    case 5:
+      return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -6485,6 +7648,62 @@ extension LocalExerciseLogQueryFilter
       ));
     });
   }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterFilterCondition>
+      targetSetsEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'targetSets',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterFilterCondition>
+      targetSetsGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'targetSets',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterFilterCondition>
+      targetSetsLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'targetSets',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterFilterCondition>
+      targetSetsBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'targetSets',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
 }
 
 extension LocalExerciseLogQueryObject
@@ -6563,6 +7782,20 @@ extension LocalExerciseLogQuerySortBy
       return query.addSortBy(r'supabaseId', Sort.desc);
     });
   }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterSortBy>
+      sortByTargetSets() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetSets', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterSortBy>
+      sortByTargetSetsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetSets', Sort.desc);
+    });
+  }
 }
 
 extension LocalExerciseLogQuerySortThenBy
@@ -6634,6 +7867,20 @@ extension LocalExerciseLogQuerySortThenBy
       return query.addSortBy(r'supabaseId', Sort.desc);
     });
   }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterSortBy>
+      thenByTargetSets() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetSets', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QAfterSortBy>
+      thenByTargetSetsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'targetSets', Sort.desc);
+    });
+  }
 }
 
 extension LocalExerciseLogQueryWhereDistinct
@@ -6669,6 +7916,13 @@ extension LocalExerciseLogQueryWhereDistinct
       distinctBySupabaseId({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'supabaseId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, LocalExerciseLog, QDistinct>
+      distinctByTargetSets() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'targetSets');
     });
   }
 }
@@ -6712,6 +7966,12 @@ extension LocalExerciseLogQueryProperty
       supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');
+    });
+  }
+
+  QueryBuilder<LocalExerciseLog, int, QQueryOperations> targetSetsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'targetSets');
     });
   }
 }

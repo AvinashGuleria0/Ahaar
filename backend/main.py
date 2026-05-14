@@ -5,7 +5,7 @@ import base64
 import json
 import re
 import uuid
-from fastapi import FastAPI, UploadFile, File, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -45,15 +45,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Clients
-# Initialize Local Ollama Client (No API key needed)
-local_client = OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama",
-)
+def get_ai_client(ai_model: str):
+    if ai_model == 'openrouter':
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY", "dummy"),
+        ), "qwen/qwen2.5-vl-72b-instruct"
+    elif ai_model == 'groq':
+        return OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=os.getenv("GROQ_API_KEY", "dummy"),
+        ), "meta-llama/llama-4-scout-17b-16e-instruct"
+    else: # local
+        return OpenAI(
+            base_url="http://localhost:11434/v1",
+            api_key="ollama",
+        ), "gemma4:e4b"
+
+# Initialize Supabase and Embeddings
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-print("🧠 Loading Local Embedding Model...")
+print("🧠 Loading Local Text Embedding Model...")
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+print("🧠 Attempting to load Qwen3-VL-Embedding-2B for Image Semantic Search...")
+try:
+    from src.models.qwen3_vl_embedding import Qwen3VLEmbedder
+    qwen_embedder = Qwen3VLEmbedder(
+        model_name_or_path="./models/Qwen3-VL-Embedding-2B",
+        max_pixels=262144, # Enforce 512x512 max resolution for VRAM safety
+    )
+except ImportError:
+    print("⚠️ Qwen3VLEmbedder not found locally. Visual semantic cache is disabled.")
+    qwen_embedder = None
 
 # --- PYDANTIC SCHEMAS (To force perfect JSON from AI) ---
 class Ingredient(BaseModel):
@@ -104,22 +127,98 @@ def match_ingredient_in_db(ingredient_name: str, weight_g: float):
         "confidence": round(best_match['similarity'] * 100, 1)
     }
 
+def match_university_meal(image_bytes, university_id: str):
+    """
+    Computes 2048D image embedding using Qwen3-VL and short-circuits the LLM
+    by checking the university_meals Supabase cache.
+    """
+    if not qwen_embedder or not university_id:
+        return None
+        
+    try:
+        from PIL import Image
+        import io
+        
+        # Load and safely thumbnail the image to preserve backend VRAM
+        img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        img.thumbnail((512, 512))
+        
+        inputs = [{"image": img}]
+        embeddings = qwen_embedder.process(inputs)
+        
+        # Extract the 2048-d vector
+        query_vector = embeddings[0].tolist() if hasattr(embeddings[0], 'tolist') else list(embeddings[0])
+        
+        # Execute Supabase RPC
+        response = supabase.rpc(
+            'match_university_meal_rpc',
+            {
+                'query_embedding': query_vector,
+                'user_university_id': university_id,
+                'match_threshold': 0.85
+            }
+        ).execute()
+        
+        matches = response.data
+        if matches and len(matches) > 0:
+            match = matches[0]
+            print(f"🎯 Semantic Cache Hit! Matched: {match['dish_name']} ({match['similarity']*100:.1f}%)")
+            # Synthesize exact JSON LLM output format
+            return {
+                "dishes": [
+                    {
+                        "dish_name": match['dish_name'],
+                        "gravy_detected": False,
+                        "bounding_box": [0, 0, 1000, 1000],
+                        "ingredients": [
+                            {
+                                "name": match['dish_name'],
+                                "weight_g": match['default_weight_g'],
+                                "macros": {
+                                    "calories": match['calories'],
+                                    "protein_g": match['protein_g'],
+                                    "carbs_g": match['carbs_g'],
+                                    "fats_g": match['fats_g']
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+    except Exception as e:
+        print(f"Error matching university meal: {e}")
+        
+    return None
+
 # --- THE MAIN ENDPOINT ---
 @app.post("/api/v1/analyze/vision")
-async def analyze_vision(file: UploadFile = File(...)):
-    print(f"📥 Received file: {file.filename} ({file.content_type})")
+async def analyze_vision(
+    file: UploadFile = File(...),
+    ai_model: str = Form("openrouter"),
+    university_id: str = Form(None)
+):
+    print(f"📥 Received file: {file.filename} ({file.content_type}) for model: {ai_model}")
     try:
         # 1. Read the image uploaded by the mobile app
         contents = await file.read()
         print(f"📦 Read {len(contents)} bytes from the uploaded file.")
+        
+        # 2. Check the Hyper-Local University Semantic Cache first!
+        if university_id:
+            print(f"🔍 Checking cache for University ID: {university_id}")
+            cache_hit = match_university_meal(contents, university_id)
+            if cache_hit:
+                return cache_hit # Short-circuit! Bypasses OpenRouter completely.
+                
+        # 3. Cache miss: fallback to LLM
         base64_image = encode_image(contents)
         print("🖼️ Image encoding successful.")
         
         # Determine model
-        model_id = "gemma4:e2b"
+        client, model_id = get_ai_client(ai_model)
 
-        # 2. Ask local Ollama model to analyze the image
-        print(f"🚀 Sending to local Ollama model: {model_id}...")
+        # 2. Ask model to analyze the image
+        print(f"🚀 Sending to AI model: {model_id}...")
        
         system_prompt = """ 
             You are an expert Indian nutritionist and computer vision assistant specializing in meal analysis.
@@ -216,7 +315,7 @@ CRITICAL CONSTRAINTS
 
         """
         
-        chat_completion = local_client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -304,10 +403,13 @@ CRITICAL CONSTRAINTS
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/analyze/text")
-async def analyze_text(request: TextLogRequest):
-    print(f"📥 Received text log: {request.text}")
+async def analyze_text(
+    request: TextLogRequest,
+    ai_model: str = "openrouter" # Accept from query/JSON
+):
+    print(f"📥 Received text log: {request.text} for model: {ai_model}")
     try:
-        model_id = "gemma4:e2b" # Or whichever text model you are currently using in local_client
+        client, model_id = get_ai_client(ai_model)
         
         system_prompt = """
 You are an Indian Nutritionist. Extract the food items from the provided text.
@@ -335,7 +437,7 @@ Return ONLY valid JSON. No explanation. No markdown.
 - Estimate realistic 'weight_g' for the ingredients inferred from the user's description (e.g. "2 rotis and dal" -> roti: ~80g, dal: ~150g).
         """
         
-        chat_completion = local_client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.text}
